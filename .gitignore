@@ -4,3 +4,7 @@
 Libraries/
 Linkers/
 *stm*
+*.cogui
+*.comarker
+*EVB100*
+

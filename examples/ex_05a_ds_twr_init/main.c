@@ -138,9 +138,9 @@ int main(void)
 
     /* Set expected response's delay and timeout. See NOTE 4, 5 and 6 below.
      * As this example only handles one incoming frame with always the same delay and timeout, those values can be set here once for all. */
-    dwt_setrxaftertxdelay(POLL_TX_TO_RESP_RX_DLY_UUS);
-    dwt_setrxtimeout(RESP_RX_TIMEOUT_UUS);
-    dwt_setpreambledetecttimeout(PRE_TIMEOUT);
+    dwt_setrxaftertxdelay(POLL_TX_TO_RESP_RX_DLY_UUS); /* Sets delay to turn on receiver after a frame transmission has completed 5.52 api */
+    dwt_setrxtimeout(RESP_RX_TIMEOUT_UUS); /* Sets the receiver to timeout and disable when no frame is received within the specified time 5.30 api */
+    dwt_setpreambledetecttimeout(PRE_TIMEOUT); /* Sets the receiver to timeout and disable when no preamble is received within the specified time 5.31 api */
 
     /* Loop forever initiating ranging exchanges. */
     while (1)

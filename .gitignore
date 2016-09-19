@@ -7,4 +7,5 @@ Linkers/
 *.cogui
 *.comarker
 *EVB100*
-
+RemoteSystemsTempFiles/
+.metadata/

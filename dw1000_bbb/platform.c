@@ -18,6 +18,25 @@
 
 #include "platform.h"
 #include <unistd.h> // for usleep
+#include <linux/spi/spidev.h>
+#include <sys/ioctl.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+
+#define SPI_SPEED_SLOW    				( 3000000)
+#define SPI_SPEED_FAST  	  			(10000000)
+#define SPI_PATH 						"/dev/spidev1.0"
+
+static uint32_t mode 	= 0;
+static uint8_t bits 	= 8;
+static uint32_t speed 	= SPI_SPEED_SLOW;
+static uint16_t delay 	= 0;
+
+static int fd;
+
+int GPIOPin = 60, /* Reset GPIO pin - GPIO1_28 or pin 12 on the P9 header */
+FILE *resetGPIO = NULL;
 
 /* Wrapper function to be used by decadriver. Declared in deca_device_api.h */
 void deca_sleep(unsigned int time_ms)
@@ -32,157 +51,174 @@ void sleep_ms(unsigned int time_ms)
 
 void spi_set_rate_low (void)
 {
-    //SPI_ChangeRate(SPI_BaudRatePrescaler_32);
+	speed = SPI_SPEED_SLOW;
+    if(ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed)==-1){
+		perror("SPI: Can't set max speed HZ");
+		return -1;
+	}
+	if(ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed)==-1){
+		perror("SPI: Can't get max speed HZ.");
+		return -1;
+	}
 }
 
 void spi_set_rate_high (void)
 {
-    //SPI_ChangeRate(SPI_BaudRatePrescaler_4);
+	speed = SPI_SPEED_FAST;
+	if(ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed)==-1){
+		perror("SPI: Can't set max speed HZ");
+		return -1;
+	}
+	if(ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed)==-1){
+		perror("SPI: Can't get max speed HZ.");
+		return -1;
+	}
 }
 
 int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodylength, const uint8 *bodyBuffer)
 {
-	/*
-	int i=0;
+	int status;
 
-    decaIrqStatus_t  stat ;
+	struct spi_ioc_transfer transfer1 = {
+		.tx_buf = (unsigned long)headerBuffer,
+		.rx_buf = (unsigned long)NULL,
+		.len = headerLength,
+		.delay_usecs = delay,
+		.speed_hz = speed,
+		.bits_per_word = bits,
+	};
 
-    stat = decamutexon() ;
+	// send the SPI message (all of the above fields, inc. buffers)
+	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer1);
+	if(status < 0)
+		return DWT_ERROR;
 
-    SPIx_CS_GPIO->BRR = SPIx_CS;
+	struct spi_ioc_transfer transfer2 = {
+		.tx_buf = (unsigned long)bodyBuffer,
+		.rx_buf = (unsigned long)NULL,
+		.len = bodylength,
+		.delay_usecs = delay,
+		.speed_hz = speed,
+		.bits_per_word = bits,
+	};
 
-    for(i=0; i<headerLength; i++)
-    {
-    	SPIx->DR = headerBuffer[i];
+	// send the SPI message (all of the above fields, inc. buffers)
+	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer2);
+	if(status < 0)
+		return DWT_ERROR;
 
-    	while ((SPIx->SR & SPI_I2S_FLAG_RXNE) == (uint16_t)RESET);
 
-    	SPIx->DR ;
-    }
-
-    for(i=0; i<bodylength; i++)
-    {
-     	SPIx->DR = bodyBuffer[i];
-
-    	while((SPIx->SR & SPI_I2S_FLAG_RXNE) == (uint16_t)RESET);
-
-		SPIx->DR ;
-	}
-
-    SPIx_CS_GPIO->BSRR = SPIx_CS;
-
-    decamutexoff(stat) ;
-	*/
-
-    return 0;
 } // end writetospi()
 
 int readfromspi(uint16 headerLength, const uint8 *headerBuffer, uint32 readlength, uint8 *readBuffer)
 {
-	/*
-	int i=0;
+	int status;
 
-    decaIrqStatus_t  stat ;
+	struct spi_ioc_transfer transfer1 = {
+		.tx_buf = (unsigned long)headerBuffer,
+		.rx_buf = (unsigned long)NULL,
+		.len = headerLength,
+		.delay_usecs = delay,
+		.speed_hz = speed,
+		.bits_per_word = bits,
+	};
 
-    stat = decamutexon() ;
+	// send the SPI message (all of the above fields, inc. buffers)
+	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer1);
+	if(status < 0)
+		return DWT_ERROR;
 
-    // Wait for SPIx Tx buffer empty
-    //while (port_SPIx_busy_sending());
+	struct spi_ioc_transfer transfer2 = {
+		.tx_buf = (unsigned long)NULL,
+		.rx_buf = (unsigned long)readBuffer,
+		.len = readlength,
+		.delay_usecs = delay,
+		.speed_hz = speed,
+		.bits_per_word = bits,
+	};
 
-    SPIx_CS_GPIO->BRR = SPIx_CS;
+	// send the SPI message (all of the above fields, inc. buffers)
+	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer2);
+	if(status < 0)
+		return DWT_ERROR;
 
-    for(i=0; i<headerLength; i++)
-    {
-    	SPIx->DR = headerBuffer[i];
-
-     	while((SPIx->SR & SPI_I2S_FLAG_RXNE) == (uint16_t)RESET);
-
-     	readBuffer[0] = SPIx->DR ; // Dummy read as we write the header
-    }
-
-    for(i=0; i<readlength; i++)
-    {
-    	SPIx->DR = 0;  // Dummy write as we read the message body
-
-    	while((SPIx->SR & SPI_I2S_FLAG_RXNE) == (uint16_t)RESET);
-
-	   	readBuffer[i] = SPIx->DR ;//port_SPIx_receive_data(); //this clears RXNE bit
-    }
-
-    SPIx_CS_GPIO->BSRR = SPIx_CS;
-
-    decamutexoff(stat) ;
-    */
-
-    return 0;
 } // end readfromspi()
 
 void hardware_init (void)
 {
-	/*
-	clock_init();
-	gpio_init();
-	interrupt_init();
-	spi_init();
-	*/
+    char setValue[4], GPIOString[4], GPIOValue[64], GPIODirection[64];
+    sprintf(GPIOString, "%d", GPIOPin);
+    sprintf(GPIOValue, "/sys/class/gpio/gpio%d/value", GPIOPin);
+    sprintf(GPIODirection, "/sys/class/gpio/gpio%d/direction", GPIOPin);
+ 
+    // Export the pin
+    if ((resetGPIO = fopen("/sys/class/gpio/export", "ab")) == NULL){
+        printf("Unable to export GPIO pin\n");
+        return 1;
+    }
+    strcpy(setValue, GPIOString);
+    fwrite(&setValue, sizeof(char), 2, resetGPIO);
+    fclose(resetGPIO);
+ 
+    // Set direction of the pin to an output
+    if ((resetGPIO = fopen(GPIODirection, "rb+")) == NULL){
+        printf("Unable to open direction handle\n");
+        return 1;
+    }
+    strcpy(setValue,"out");
+    fwrite(&setValue, sizeof(char), 3, resetGPIO);
+    fclose(resetGPIO);
 
-	/*
-	// enable clock for PORTs
-	CLOCK_SYS_EnablePortClock(PORTA_IDX);
-	CLOCK_SYS_EnablePortClock(PORTC_IDX);
-	CLOCK_SYS_EnablePortClock(PORTE_IDX);
-
-	// Init board clock
-	BOARD_ClockInit();
-	dbg_uart_init();
-
-	// Configure SPI pins
-	configure_spi_pins(0);
-	*/
+	// The following calls set up the SPI bus properties
+	if((fd = open(SPI_PATH, O_RDWR))<0){
+		perror("SPI Error: Can't open device.");
+		return -1;
+	}
+	if(ioctl(fd, SPI_IOC_WR_MODE, &mode)==-1){
+		perror("SPI: Can't set SPI mode.");
+		return -1;
+	}
+	if(ioctl(fd, SPI_IOC_RD_MODE, &mode)==-1){
+		perror("SPI: Can't get SPI mode.");
+		return -1;
+	}
+	if(ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &bits)==-1){
+		perror("SPI: Can't set bits per word.");
+		return -1;
+	}
+	if(ioctl(fd, SPI_IOC_RD_BITS_PER_WORD, &bits)==-1){
+		perror("SPI: Can't get bits per word.");
+		return -1;
+	}
+	if(ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed)==-1){
+		perror("SPI: Can't set max speed HZ");
+		return -1;
+	}
+	if(ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed)==-1){
+		perror("SPI: Can't get max speed HZ.");
+		return -1;
+	}
 }
 
 void reset_DW1000(void)
 {
-	/*
-	GPIO_InitTypeDef GPIO_InitStructure;
-
-	// Enable GPIO used for DW1000 reset
-	GPIO_InitStructure.GPIO_Pin = DW1000_RSTn;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_Init(DW1000_RSTn_GPIO, &GPIO_InitStructure);
-
-	//drive the RSTn pin low
-	GPIO_ResetBits(DW1000_RSTn_GPIO, DW1000_RSTn);
-
-	//put the pin back to tri-state ... as input
-	GPIO_InitStructure.GPIO_Pin = DW1000_RSTn;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_Init(DW1000_RSTn_GPIO, &GPIO_InitStructure);
-	*/
-
+    // Set output to low
+    if ((resetGPIO = fopen(GPIOValue, "rb+")) == NULL){
+        printf("Unable to open value handle\n");
+        return 1;
+    }
+    strcpy(setValue, "0"); // Set value low
+    fwrite(&setValue, sizeof(char), 1, resetGPIO);
+    fclose(resetGPIO);
     sleep_ms(2);
-}
 
-decaIrqStatus_t decamutexon(void)
-{
-	/*
-	decaIrqStatus_t s = port_GetEXT_IRQStatus();
-
-	if(s) {
-		port_DisableEXT_IRQ(); //disable the external interrupt line
-	}
-	return s ;   // return state before disable, value is used to re-enable in decamutexoff call
-	*/
-	return -1;
-}
-
-void decamutexoff(decaIrqStatus_t s)        // put a function here that re-enables the interrupt at the end of the critical section
-{
-	/*
-	if(s) { //need to check the port state as we can't use level sensitive interrupt on the STM ARM
-		port_EnableEXT_IRQ();
-	}
-	*/
+	// Set output to high
+    if ((resetGPIO = fopen(GPIOValue, "rb+")) == NULL){
+        printf("Unable to open value handle\n");
+        return 1;
+    }
+    strcpy(setValue, "1"); // Set value high
+    fwrite(&setValue, sizeof(char), 1, resetGPIO);
+    fclose(resetGPIO);
+    sleep_ms(2);
 }

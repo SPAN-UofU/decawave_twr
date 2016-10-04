@@ -170,7 +170,7 @@ int hardware_init (void)
     fclose(resetGPIO);
 
 	// The following calls set up the SPI bus properties
-	if((fd = open(SPI_PATH, O_RDWR))<0){
+	if((fd = fopen(SPI_PATH, O_RDWR))<0){
 		perror("SPI Error: Can't open device.");
 		return -1;
 	}
@@ -202,6 +202,9 @@ int hardware_init (void)
 
 int reset_DW1000(void)
 {
+    char setValue[4], GPIOValue[64];
+    sprintf(GPIOValue, "/sys/class/gpio/gpio%d/value", GPIOPin);
+    
     // Set output to low
     if ((resetGPIO = fopen(GPIOValue, "rb+")) == NULL){
         printf("Unable to open value handle\n");

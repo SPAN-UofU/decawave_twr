@@ -19,6 +19,7 @@
 #include "deca_types.h"
 #include "deca_device_api.h"
 #include <stdint.h>
+#include <fcntl.h>
 
 #define DECA_MAX_SPI_HEADER_LENGTH      (3)                     // max number of bytes in header (for formating & sizing)
 

@@ -60,6 +60,8 @@ int spi_set_rate_low (void)
 		perror("SPI: Can't get max speed HZ.");
 		return -1;
 	}
+
+        return 0;
 }
 
 int spi_set_rate_high (void)
@@ -73,6 +75,8 @@ int spi_set_rate_high (void)
 		perror("SPI: Can't get max speed HZ.");
 		return -1;
 	}
+
+        return 0;
 }
 
 int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodylength, const uint8 *bodyBuffer)
@@ -106,6 +110,8 @@ int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodylength
 	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer2);
 	if(status < 0)
 		return DWT_ERROR;
+
+        return DWT_SUCCESS;
 
 
 } // end writetospi()
@@ -142,6 +148,8 @@ int readfromspi(uint16 headerLength, const uint8 *headerBuffer, uint32 readlengt
 	if(status < 0)
 		return DWT_ERROR;
 
+        return DWT_SUCCESS;
+
 } // end readfromspi()
 
 int hardware_init (void)
@@ -170,7 +178,7 @@ int hardware_init (void)
     fclose(resetGPIO);
 
 	// The following calls set up the SPI bus properties
-	if((fd = fopen(SPI_PATH, O_RDWR))<0){
+	if((fd = open(SPI_PATH, O_RDWR))<0){
 		perror("SPI Error: Can't open device.");
 		return -1;
 	}
@@ -198,6 +206,7 @@ int hardware_init (void)
 		perror("SPI: Can't get max speed HZ.");
 		return -1;
 	}
+    return 0;
 }
 
 int reset_DW1000(void)
@@ -224,4 +233,5 @@ int reset_DW1000(void)
     fwrite(&setValue, sizeof(char), 1, resetGPIO);
     fclose(resetGPIO);
     sleep_ms(2);
+    return 0;
 }

@@ -12,4 +12,5 @@ RemoteSystemsTempFiles/
 .Rhistory
 *.c~
 *.h~
+*.o
 

@@ -49,7 +49,7 @@ void sleep_ms(unsigned int time_ms)
     usleep(time_ms * 1000);
 }
 
-void spi_set_rate_low (void)
+int spi_set_rate_low (void)
 {
 	speed = SPI_SPEED_SLOW;
     if(ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed)==-1){
@@ -62,7 +62,7 @@ void spi_set_rate_low (void)
 	}
 }
 
-void spi_set_rate_high (void)
+int spi_set_rate_high (void)
 {
 	speed = SPI_SPEED_FAST;
 	if(ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed)==-1){
@@ -144,7 +144,7 @@ int readfromspi(uint16 headerLength, const uint8 *headerBuffer, uint32 readlengt
 
 } // end readfromspi()
 
-void hardware_init (void)
+int hardware_init (void)
 {
     char setValue[4], GPIOString[4], GPIOValue[64], GPIODirection[64];
     sprintf(GPIOString, "%d", GPIOPin);
@@ -200,7 +200,7 @@ void hardware_init (void)
 	}
 }
 
-void reset_DW1000(void)
+int reset_DW1000(void)
 {
     // Set output to low
     if ((resetGPIO = fopen(GPIOValue, "rb+")) == NULL){

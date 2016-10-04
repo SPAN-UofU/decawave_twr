@@ -18,6 +18,7 @@
 
 #include "deca_types.h"
 #include "deca_device_api.h"
+#include <stdint.h>
 
 #define DECA_MAX_SPI_HEADER_LENGTH      (3)                     // max number of bytes in header (for formating & sizing)
 
@@ -30,7 +31,7 @@
  *
  * @return none
  */
-void hardware_init();
+int hardware_init();
 
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn reset_DW1000()
@@ -41,7 +42,7 @@ void hardware_init();
  *
  * @return none
  */
-void reset_DW1000();
+int reset_DW1000();
 
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn spi_set_rate_low()
@@ -52,7 +53,7 @@ void reset_DW1000();
  *
  * @return none
  */
-void spi_set_rate_low();
+int spi_set_rate_low();
 
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn spi_set_rate_high()
@@ -63,6 +64,6 @@ void spi_set_rate_low();
  *
  * @return none
  */
-void spi_set_rate_high();
+int spi_set_rate_high();
 
 void sleep_ms(unsigned int time_ms);

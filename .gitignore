@@ -9,3 +9,6 @@ Linkers/
 *EVB100*
 RemoteSystemsTempFiles/
 .metadata/
+.Rhistory
+*.c~
+*.h~

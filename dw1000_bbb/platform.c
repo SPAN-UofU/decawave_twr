@@ -35,7 +35,7 @@ static uint16_t delay 	= 0;
 
 static int fd;
 
-int GPIOPin = 60, /* Reset GPIO pin - GPIO1_28 or pin 12 on the P9 header */
+int GPIOPin = 60; /* Reset GPIO pin - GPIO1_28 or pin 12 on the P9 header */
 FILE *resetGPIO = NULL;
 
 /* Wrapper function to be used by decadriver. Declared in deca_device_api.h */

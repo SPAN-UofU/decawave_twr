@@ -235,3 +235,20 @@ int reset_DW1000(void)
     sleep_ms(2);
     return 0;
 }
+
+decaIrqStatus_t decamutexon(void) 
+{
+	decaIrqStatus_t s = port_GetEXT_IRQStatus();
+
+	if(s) {
+		// no interrupt lines
+	}
+	return s ;   // return state before disable, value is used to re-enable in decamutexoff call
+}
+
+void decamutexoff(decaIrqStatus_t s)        // put a function here that re-enables the interrupt at the end of the critical section
+{
+	if(s) { //need to check the port state as we can't use level sensitive interrupt on the STM ARM
+		// no interrupt lines
+	}
+}

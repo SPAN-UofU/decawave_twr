@@ -238,7 +238,7 @@ int reset_DW1000(void)
 
 decaIrqStatus_t decamutexon(void) 
 {
-	decaIrqStatus_t s = port_GetEXT_IRQStatus();
+	decaIrqStatus_t s = 0;//port_GetEXT_IRQStatus();
 
 	if(s) {
 		// no interrupt lines

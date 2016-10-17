@@ -729,6 +729,23 @@ void dwt_readtxtimestamp(uint8 * timestamp)
 }
 
 /*! ------------------------------------------------------------------------------------------------------------------
+ * @fn dwt_readtx_sys_count()
+ *
+ * @brief This is used to read the system counter associated with the TX timestamp
+ *
+ * input parameters
+ * @param timestamp - a pointer to a 5-byte buffer which will store the read system counter
+ *
+ * output parameters - the system counter buffer will contain the value after the function call
+ *
+ * no return value
+ */
+void dwt_readtx_sys_count(uint8 * timestamp)
+{
+    dwt_readfromdevice(TX_TIME_ID, TX_TIME_TX_RAWST_OFFSET, TX_TIME_TX_STAMP_LEN, timestamp) ; // Read bytes directly into buffer
+}
+
+/*! ------------------------------------------------------------------------------------------------------------------
  * @fn dwt_readtxtimestamphi32()
  *
  * @brief This is used to read the high 32-bits of the TX timestamp (adjusted with the programmed antenna delay)
@@ -775,6 +792,23 @@ uint32 dwt_readtxtimestamplo32(void)
 void dwt_readrxtimestamp(uint8 * timestamp)
 {
     dwt_readfromdevice(RX_TIME_ID, RX_TIME_RX_STAMP_OFFSET, RX_TIME_RX_STAMP_LEN, timestamp) ; // Get the adjusted time of arrival
+}
+
+/*! ------------------------------------------------------------------------------------------------------------------
+ * @fn dwt_readrx_sys_count()
+ *
+ * @brief This is used to read the system counter associated with the RX timestamp
+ *
+ * input parameters
+ * @param timestamp - a pointer to a 5-byte buffer which will store the read system counter
+ *
+ * output parameters - the system counter buffer will contain the value after the function call
+ *
+ * no return value
+ */
+void dwt_readrx_sys_count(uint8 * timestamp)
+{
+    dwt_readfromdevice(RX_TIME_ID, RX_TIME_RX_RAWST_OFFSET, RX_TIME_RX_STAMP_LEN, timestamp) ; // Read bytes directly into buffer
 }
 
 /*! ------------------------------------------------------------------------------------------------------------------

@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include "deca_regs.h"
 
 #define SPI_SPEED_SLOW    				( 3000000)
 #define SPI_SPEED_FAST  	  			(10000000)
@@ -35,24 +36,26 @@ static uint16_t delay 	= 0;
 
 static int fd;
 
-int GPIOPin = 60; /* Reset GPIO pin - GPIO1_28 or pin 12 on the P9 header */
+int RSTPin = 46; /* Reset GPIO pin - GPIO1_14 or pin 16 on the P8 header */
+int IRQPin = 47; /* Reset GPIO pin - GPIO1_15 or pin 15 on the P8 header */
 FILE *resetGPIO = NULL;
+FILE *irqGPIO = NULL;
 
 /* Wrapper function to be used by decadriver. Declared in deca_device_api.h */
 void deca_sleep(unsigned int time_ms)
 {
-    sleep_ms(time_ms);
+	sleep_ms(time_ms);
 }
 
 void sleep_ms(unsigned int time_ms)
 {
-    usleep(time_ms * 1000);
+	usleep(time_ms * 1000);
 }
 
 int spi_set_rate_low (void)
 {
 	speed = SPI_SPEED_SLOW;
-    if(ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed)==-1){
+	if(ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed)==-1){
 		perror("SPI: Can't set max speed HZ");
 		return -1;
 	}
@@ -61,7 +64,7 @@ int spi_set_rate_low (void)
 		return -1;
 	}
 
-        return 0;
+	return 0;
 }
 
 int spi_set_rate_high (void)
@@ -76,42 +79,45 @@ int spi_set_rate_high (void)
 		return -1;
 	}
 
-        return 0;
+	return 0;
 }
 
 int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodylength, const uint8 *bodyBuffer)
 {
 	int status;
 
-	struct spi_ioc_transfer transfer1 = {
-		.tx_buf = (unsigned long)headerBuffer,
-		.rx_buf = (unsigned long)NULL,
-		.len = headerLength,
+	uint8_t txbuf[headerLength+bodylength];
+	uint8_t rxbuf[headerLength+bodylength];
+
+	struct spi_ioc_transfer transfer = {
+		.tx_buf = (unsigned long)txbuf,
+		.rx_buf = (unsigned long)rxbuf,
+		.len = headerLength+bodylength,
 		.delay_usecs = delay,
 		.speed_hz = speed,
 		.bits_per_word = bits,
 	};
 
+	int j;
+	for(j = 0; j < headerLength; j++)
+	{
+		txbuf[j] = headerBuffer[j];
+	}
+
+	for(j = 0; j < bodylength; j++)
+	{
+		txbuf[headerLength+j] = bodyBuffer[j];
+	}
+
+	//printf("hdr buf: %02X %02X body buf: %02X %02X tx buf: %02X %02X %02X %02X\n", headerBuffer[0], headerBuffer[1], bodyBuffer[0], bodyBuffer[1], txbuf[0], txbuf[1], txbuf[headerLength], txbuf[headerLength+1]);
+	//printf("hdr: %d body: %d tx: %d\n", headerLength, bodylength, transfer.len);
+
 	// send the SPI message (all of the above fields, inc. buffers)
-	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer1);
+	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer);
 	if(status < 0)
 		return DWT_ERROR;
 
-	struct spi_ioc_transfer transfer2 = {
-		.tx_buf = (unsigned long)bodyBuffer,
-		.rx_buf = (unsigned long)NULL,
-		.len = bodylength,
-		.delay_usecs = delay,
-		.speed_hz = speed,
-		.bits_per_word = bits,
-	};
-
-	// send the SPI message (all of the above fields, inc. buffers)
-	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer2);
-	if(status < 0)
-		return DWT_ERROR;
-
-        return DWT_SUCCESS;
+	return DWT_SUCCESS;
 
 
 } // end writetospi()
@@ -119,63 +125,81 @@ int writetospi(uint16 headerLength, const uint8 *headerBuffer, uint32 bodylength
 int readfromspi(uint16 headerLength, const uint8 *headerBuffer, uint32 readlength, uint8 *readBuffer)
 {
 	int status;
+	uint8_t buf[readlength];
 
-	struct spi_ioc_transfer transfer1 = {
+	struct spi_ioc_transfer transfer = {
 		.tx_buf = (unsigned long)headerBuffer,
-		.rx_buf = (unsigned long)NULL,
-		.len = headerLength,
+		.rx_buf = (unsigned long)buf,
+		.len = headerLength+readlength,
 		.delay_usecs = delay,
 		.speed_hz = speed,
 		.bits_per_word = bits,
 	};
 
 	// send the SPI message (all of the above fields, inc. buffers)
-	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer1);
+	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer);
 	if(status < 0)
 		return DWT_ERROR;
 
-	struct spi_ioc_transfer transfer2 = {
-		.tx_buf = (unsigned long)NULL,
-		.rx_buf = (unsigned long)readBuffer,
-		.len = readlength,
-		.delay_usecs = delay,
-		.speed_hz = speed,
-		.bits_per_word = bits,
-	};
+	int j;
+	for(j = 0; j < readlength; j++)
+	{
+		readBuffer[j] = buf[j+headerLength];
+	}
 
-	// send the SPI message (all of the above fields, inc. buffers)
-	status = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer2);
-	if(status < 0)
-		return DWT_ERROR;
-
-        return DWT_SUCCESS;
+	return DWT_SUCCESS;
 
 } // end readfromspi()
 
 int hardware_init (void)
 {
-    char setValue[4], GPIOString[4], GPIOValue[64], GPIODirection[64];
-    sprintf(GPIOString, "%d", GPIOPin);
-    sprintf(GPIOValue, "/sys/class/gpio/gpio%d/value", GPIOPin);
-    sprintf(GPIODirection, "/sys/class/gpio/gpio%d/direction", GPIOPin);
- 
+	char setValue[4], GPIOString[4], GPIOValue[64], GPIODirection[64];
+
+    // Setup RESET
+	sprintf(GPIOString, "%d", RSTPin);
+	sprintf(GPIOValue, "/sys/class/gpio/gpio%d/value", RSTPin);
+	sprintf(GPIODirection, "/sys/class/gpio/gpio%d/direction", RSTPin);
+
     // Export the pin
-    if ((resetGPIO = fopen("/sys/class/gpio/export", "ab")) == NULL){
-        printf("Unable to export GPIO pin\n");
-        return 1;
-    }
-    strcpy(setValue, GPIOString);
-    fwrite(&setValue, sizeof(char), 2, resetGPIO);
-    fclose(resetGPIO);
- 
+	if ((resetGPIO = fopen("/sys/class/gpio/export", "ab")) == NULL){
+		printf("Unable to export GPIO pin\n");
+		return 1;
+	}
+	strcpy(setValue, GPIOString);
+	fwrite(&setValue, sizeof(char), 2, resetGPIO);
+	fclose(resetGPIO);
+
     // Set direction of the pin to an output
-    if ((resetGPIO = fopen(GPIODirection, "rb+")) == NULL){
-        printf("Unable to open direction handle\n");
-        return 1;
-    }
-    strcpy(setValue,"out");
-    fwrite(&setValue, sizeof(char), 3, resetGPIO);
-    fclose(resetGPIO);
+	if ((resetGPIO = fopen(GPIODirection, "rb+")) == NULL){
+		printf("Unable to open direction handle\n");
+		return 1;
+	}
+	strcpy(setValue,"out");
+	fwrite(&setValue, sizeof(char), 3, resetGPIO);
+	fclose(resetGPIO);
+
+    // Setup IRQ
+	sprintf(GPIOString, "%d", IRQPin);
+	sprintf(GPIOValue, "/sys/class/gpio/gpio%d/value", IRQPin);
+	sprintf(GPIODirection, "/sys/class/gpio/gpio%d/direction", IRQPin);
+
+    // Export the pin
+	if ((irqGPIO = fopen("/sys/class/gpio/export", "ab")) == NULL){
+		printf("Unable to export GPIO pin\n");
+		return 1;
+	}
+	strcpy(setValue, GPIOString);
+	fwrite(&setValue, sizeof(char), 2, irqGPIO);
+	fclose(irqGPIO);
+
+    // Set direction of the pin to an output
+	if ((irqGPIO = fopen(GPIODirection, "rb+")) == NULL){
+		printf("Unable to open direction handle\n");
+		return 1;
+	}
+	strcpy(setValue,"in");
+	fwrite(&setValue, sizeof(char), 3, irqGPIO);
+	fclose(irqGPIO);
 
 	// The following calls set up the SPI bus properties
 	if((fd = open(SPI_PATH, O_RDWR))<0){
@@ -206,19 +230,19 @@ int hardware_init (void)
 		perror("SPI: Can't get max speed HZ.");
 		return -1;
 	}
-    return 0;
+	return 0;
 }
 
 int reset_DW1000(void)
 {
-    char setValue[4], GPIOValue[64];
-    sprintf(GPIOValue, "/sys/class/gpio/gpio%d/value", GPIOPin);
-    
+	char setValue[4], GPIOValue[64];
+	sprintf(GPIOValue, "/sys/class/gpio/gpio%d/value", RSTPin);
+
     // Set output to low
-    if ((resetGPIO = fopen(GPIOValue, "rb+")) == NULL){
-        printf("Unable to open value handle\n");
-        return 1;
-    }
+	if ((resetGPIO = fopen(GPIOValue, "rb+")) == NULL){
+		printf("Unable to open value handle\n");
+		return 1;
+	}
     strcpy(setValue, "0"); // Set value low
     fwrite(&setValue, sizeof(char), 1, resetGPIO);
     fclose(resetGPIO);
@@ -226,8 +250,8 @@ int reset_DW1000(void)
 
 	// Set output to high
     if ((resetGPIO = fopen(GPIOValue, "rb+")) == NULL){
-        printf("Unable to open value handle\n");
-        return 1;
+    	printf("Unable to open value handle\n");
+    	return 1;
     }
     strcpy(setValue, "1"); // Set value high
     fwrite(&setValue, sizeof(char), 1, resetGPIO);
@@ -260,5 +284,5 @@ void dwt_readtx_sys_count(uint8 * timestamp)
 
 void dwt_readrx_sys_count(uint8 * timestamp)
 {
-    dwt_readfromdevice(RX_TIME_ID, RX_TIME_RX_RAWST_OFFSET, RX_TIME_RX_STAMP_LEN, timestamp) ; // Read bytes directly into buffer
+    dwt_readfromdevice(RX_TIME_ID, RX_TIME_FP_RAWST_OFFSET, RX_TIME_RX_STAMP_LEN, timestamp) ; // Read bytes directly into buffer
 }

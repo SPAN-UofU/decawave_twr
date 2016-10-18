@@ -73,10 +73,10 @@ static uint32 status_reg = 0;
 static uint16 frame_len = 0;
 
 /* Hold copies of timestamps */
-static uint64 t_tx1_ts;
-static uint64 t_rx1_ts;
-static uint64 t_tx1_stc;
-static uint64 t_rx1_stc;
+static uint64 t_tx1_ts; /* time when sync node transmits (in dtu) */
+static uint64 t_rx1_ts; /* system counter when sync node transmits */
+static uint64 t_tx1_stc; /* time when sync node receives (in dtu) */
+static uint64 t_rx1_stc; /* system counter when sync node receives */
 
 /**
  * Application entry point.

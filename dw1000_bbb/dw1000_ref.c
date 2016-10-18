@@ -74,10 +74,10 @@ static uint32 status_reg = 0;
 static uint16 frame_len = 0;
 
 /* Hold copies of timestamps */
-static uint64 t_tx2_ts;
-static uint64 t_rx2_ts;
-static uint64 t_tx2_stc;
-static uint64 t_rx2_stc;
+static uint64 t_tx2_ts; /* time when ref node receives (in dtu) */
+static uint64 t_rx2_ts; /* system counter when sync node receives */
+static uint64 t_tx2_stc; /* time when sync node transmits (in dtu) */
+static uint64 t_rx2_stc; /* system counter when sync node transmits */
 
 /**
  * Application entry point.
@@ -133,11 +133,9 @@ int main(void)
                 dwt_readrxdata(rx_buffer, frame_len, 0);
             }
 
-            /* Get the RX timestamp and the system counter */
+            /* Get the RX timestamp and the system counter and print to console*/
             t_rx2_ts = get_rx_timestamp_u64();
             t_rx2_stc = get_rx_syscount_u64();
-
-            /* Print timestamp stuff to screen */
             printf("\nT_rx2: %d, STC_rx2: %d\n", t_rx2_ts, t_rx2_stc)
 
             /* Clear good RX frame event in the DW1000 status register. */
@@ -165,11 +163,9 @@ int main(void)
                 while (!(dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS))
                 { };
 
-                /* Get the TX timestamp and the system counter */
+                /* Get the TX timestamp and the system counter and print to console */
                 t_tx2_ts = get_tx_timestamp_u64();
                 t_tx2_stc = get_rx_syscount_u64();
-
-                /* Print timestamp stuff to screen */
                 printf("\nT_tx2: %d, STC_tx2: %d\n", t_tx2_ts, t_tx2_stc)
 
                 /* Clear TX frame sent event. */

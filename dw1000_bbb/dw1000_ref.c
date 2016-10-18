@@ -16,8 +16,7 @@
  */
 #include "deca_device_api.h"
 #include "deca_regs.h"
-#include "lcd.h"
-#include "port.h"
+#include "platform.h"
 
 /* Default communication configuration. We use here EVK1000's default mode (mode 3). */
 static dwt_config_t config = {

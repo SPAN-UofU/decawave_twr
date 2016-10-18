@@ -142,3 +142,31 @@ void decamutexoff(decaIrqStatus_t s);
  * @return none
  */
 void sleep_ms(unsigned int time_ms);
+
+/*! ------------------------------------------------------------------------------------------------------------------
+ * @fn dwt_readtx_sys_count()
+ *
+ * @brief This is used to read the system counter associated with the TX timestamp
+ *
+ * input parameters
+ * @param timestamp - a pointer to a 5-byte buffer which will store the read system counter
+ *
+ * output parameters - the system counter buffer will contain the value after the function call
+ *
+ * no return value
+ */
+void dwt_readtx_sys_count(uint8 * timestamp);
+
+/*! ------------------------------------------------------------------------------------------------------------------
+ * @fn dwt_readrx_sys_count()
+ *
+ * @brief This is used to read the system counter associated with the RX timestamp
+ *
+ * input parameters
+ * @param timestamp - a pointer to a 5-byte buffer which will store the read system counter
+ *
+ * output parameters - the system counter buffer will contain the value after the function call
+ *
+ * no return value
+ */
+void dwt_readrx_sys_count(uint8 * timestamp);

@@ -252,3 +252,13 @@ void decamutexoff(decaIrqStatus_t s)        // put a function here that re-enabl
 		// no interrupt lines
 	}
 }
+
+void dwt_readtx_sys_count(uint8 * timestamp)
+{
+    dwt_readfromdevice(TX_TIME_ID, TX_TIME_TX_RAWST_OFFSET, TX_TIME_TX_STAMP_LEN, timestamp) ; // Read bytes directly into buffer
+}
+
+void dwt_readrx_sys_count(uint8 * timestamp)
+{
+    dwt_readfromdevice(RX_TIME_ID, RX_TIME_RX_RAWST_OFFSET, RX_TIME_RX_STAMP_LEN, timestamp) ; // Read bytes directly into buffer
+}

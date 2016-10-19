@@ -114,8 +114,8 @@ int main(void)
     dwt_settxantennadelay(TX_ANT_DLY);
 
     /* Set response time and preamble timeout for expected frames.*/
-    dwt_setrxtimeout(RX_RESP_TO_UUS);
-    dwt_setpreambledetecttimeout(PRE_TIMEOUT);
+    //dwt_setrxtimeout(RX_RESP_TO_UUS);
+    //dwt_setpreambledetecttimeout(PRE_TIMEOUT);
 
 
     /* Loop forever sending and receiving frames periodically. */

@@ -116,7 +116,7 @@ int main(void)
 
     /* Set response frame timeout. */
     dwt_setrxtimeout(RX_RESP_TO_UUS);
-    dwt_setpreambledetecttimeout(PRE_TIMEOUT);
+    //dwt_setpreambledetecttimeout(PRE_TIMEOUT);
 
     /* Loop forever sending and receiving frames periodically. */
     while (1)

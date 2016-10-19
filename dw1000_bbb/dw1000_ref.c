@@ -171,7 +171,7 @@ int main(void)
 
                 /* Get the TX timestamp and the system counter and print to console */
                 t_tx2_ts = get_tx_timestamp_u64();
-                t_tx2_stc = get_rx_syscount_u64();
+                t_tx2_stc = get_tx_syscount_u64();
                 printf("\nT_tx2: %d, STC_tx2: %d\n", t_tx2_ts, t_tx2_stc);
 
                 /* Clear TX frame sent event. */

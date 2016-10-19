@@ -13,4 +13,4 @@ RemoteSystemsTempFiles/
 *.c~
 *.h~
 *.o
-
+*.DS_Store

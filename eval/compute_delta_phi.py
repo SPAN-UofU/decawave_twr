@@ -1,8 +1,8 @@
 import numpy as np
 import scipy.constants as sp
 
-fname_ref = 'ref.txt'
-fname_sync = 'sync.txt'
+fname_ref = 'ref_gold.txt'
+fname_sync = 'sync_gold.txt'
 
 vop = 69.5/100.0
 

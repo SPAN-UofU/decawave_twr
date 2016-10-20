@@ -13,3 +13,6 @@ RemoteSystemsTempFiles/
 *.h~
 *.o
 *.DS_Store
+.project
+.pydevproject
+

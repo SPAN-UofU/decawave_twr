@@ -3,16 +3,10 @@ LDFLAGS+=-lpthread -lm
 
 dw1000-objs := platform.o deca_device.o deca_params_init.o
 
-all: dw1000_tx dw1000_rx dw1000_ref dw1000_sync
+all: clean dw1000_ref dw1000_sync
 
 clean:
-	rm -f dw1000_tx dw1000_rx dw1000_ref dw1000_sync *.o
-
-dw1000_tx: dw1000_tx.o $(dw1000-objs)
-	gcc $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-dw1000_rx: dw1000_rx.o $(dw1000-objs)
-	gcc $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	rm -f dw1000_ref dw1000_sync *.o
 
 dw1000_ref: dw1000_ref.o $(dw1000-objs)
 	gcc $(CFLAGS) -o $@ $^ $(LDFLAGS)

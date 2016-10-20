@@ -13,8 +13,14 @@
  *
  * All rights reserved.
  *
- * @author Decawave
+ * Written by:
+ * Peter Hillyard <peterhillyard@gmail.com>
  */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
 #include "deca_device_api.h"
 #include "deca_regs.h"
 #include "platform.h"
@@ -138,7 +144,7 @@ int main(void)
         /* Get the transmitted timestamp and the system counter and print to console */
         t_tx1_ts = get_tx_timestamp_u64();
         t_tx1_stc = get_tx_syscount_u64();
-        printf("\nT_tx1: %d, STC_tx1: %d\n", t_tx1_ts, t_tx1_stc);
+        printf("%lld %lld ", t_tx1_ts, t_tx1_stc);
 
         /* Poll for reception of a frame or error/timeout. See NOTE 8 below. */
         while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR)))
@@ -166,7 +172,7 @@ int main(void)
             /* Get the received timestamp and the system counter and print to console */
             t_rx1_ts = get_rx_timestamp_u64();
             t_rx1_stc = get_rx_syscount_u64();
-            printf("\nT_rx1: %d, STC_rx1: %d\n", t_rx1_ts, t_rx1_stc);
+            printf("%lld %lld\n", t_rx1_ts, t_rx1_stc);
 
             /* Clear good RX frame event in the DW1000 status register. */
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);

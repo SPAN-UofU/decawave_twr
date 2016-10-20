@@ -12,8 +12,14 @@
  *
  * All rights reserved.
  *
- * @author Decawave
+ * Written by:
+ * Peter Hillyard <peterhillyard@gmail.com>
  */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
 #include "deca_device_api.h"
 #include "deca_regs.h"
 #include "platform.h"
@@ -142,7 +148,7 @@ int main(void)
             /* Get the RX timestamp and the system counter and print to console*/
             t_rx2_ts = get_rx_timestamp_u64();
             t_rx2_stc = get_rx_syscount_u64();
-            printf("\nT_rx2: %d, STC_rx2: %d\n", t_rx2_ts, t_rx2_stc);
+            printf("%lld %lld ", t_rx2_ts, t_rx2_stc);
 
             /* Clear good RX frame event in the DW1000 status register. */
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
@@ -172,7 +178,7 @@ int main(void)
                 /* Get the TX timestamp and the system counter and print to console */
                 t_tx2_ts = get_tx_timestamp_u64();
                 t_tx2_stc = get_tx_syscount_u64();
-                printf("\nT_tx2: %d, STC_tx2: %d\n", t_tx2_ts, t_tx2_stc);
+                printf("%lld %lld\n", t_tx2_ts, t_tx2_stc);
 
                 /* Clear TX frame sent event. */
                 dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);

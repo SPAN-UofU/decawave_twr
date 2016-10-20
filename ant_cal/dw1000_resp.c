@@ -253,7 +253,7 @@ int main(void)
                         distance = tof * SPEED_OF_LIGHT;
 
                         /* Display computed distance on LCD. */
-                        sprintf(dist_str, "DIST: %3.3f m", distance);
+                        sprintf(dist_str, "DIST: %3.3f m", distance + dwt_getrange_bias(config.chan,distance,config.prf));
                         printf(dist_str);
                     }
                 }

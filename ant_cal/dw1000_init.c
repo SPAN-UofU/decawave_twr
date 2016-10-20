@@ -120,7 +120,7 @@ int main(void)
     spi_set_rate_low();
     if (dwt_initialise(DWT_LOADUCODE) == DWT_ERROR)
     {
-        pritf("INIT FAILED");
+        printf("INIT FAILED");
         while (1)
         { };
     }

@@ -94,6 +94,8 @@ static uint64 get_tx_timestamp_u64(void);
 static uint64 get_rx_timestamp_u64(void);
 static uint64 get_tx_syscount_u64(void);
 static uint64 get_rx_syscount_u64(void);
+static uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d);
+static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d)
 
 /**
  * Application entry point.

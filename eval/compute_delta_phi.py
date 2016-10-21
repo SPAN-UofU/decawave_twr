@@ -1,13 +1,13 @@
 import numpy as np
 import scipy.constants as sp
 
-fname_ref = 'ref_gold.txt'
-fname_sync = 'sync_gold.txt'
+fname_ref = 'ref_40db_gold.txt'
+fname_sync = 'sync_40db_gold.txt'
 
 vop = 69.5/100.0
 
-data_ref = np.loadtxt(fname_ref, delimiter=' ')
-data_sync = np.loadtxt(fname_sync, delimiter=' ')
+data_ref = np.loadtxt(fname_ref, delimiter=' ',dtype='uint64')
+data_sync = np.loadtxt(fname_sync, delimiter=' ',dtype='uint64')
 
 T_tx1_ts_dtu = data_sync[:, 0]
 T_tx1_sc_dtu = data_sync[:, 1]
@@ -22,11 +22,13 @@ T_tx2_sc_dtu = data_ref[:, 3]
 delta_ts_dtu = T_tx2_ts_dtu - T_rx2_ts_dtu
 delta_sc_dtu = T_tx2_sc_dtu - T_rx2_sc_dtu
 
-Delta_ts_dtu = (T_rx1_ts_dtu-T_tx1_ts_dtu-delta_ts_dtu)/2.
-Delta_sc_dtu = (T_rx1_sc_dtu-T_tx1_sc_dtu-delta_sc_dtu)/2.
+Delta_ts_dtu = (T_rx1_ts_dtu-T_tx1_ts_dtu-delta_ts_dtu)/2
+Delta_sc_dtu = (T_rx1_sc_dtu-T_tx1_sc_dtu-delta_sc_dtu)/2
 
-phi_ts_dtu = T_rx2_ts_dtu-T_tx1_ts_dtu-Delta_ts_dtu
-phi_sc_dtu = T_rx2_sc_dtu-T_tx1_sc_dtu-Delta_sc_dtu
+phi_ts_dtu = (T_rx2_ts_dtu-T_tx1_ts_dtu-Delta_ts_dtu)
+phi_sc_dtu = (T_rx2_sc_dtu-T_tx1_sc_dtu-Delta_sc_dtu)
+phi_ts_dtu = (T_rx2_ts_dtu.astype('uint32')-T_tx1_ts_dtu.astype('uint32')-Delta_ts_dtu.astype('uint32')).astype('uint64')
+phi_sc_dtu = (T_rx2_sc_dtu.astype('uint32')-T_tx1_sc_dtu.astype('uint32')-Delta_sc_dtu.astype('uint32')).astype('uint64')
 
 print np.array(['Delta (dtu)', 'Delta (ns)', 'Distance (m)'])
 print np.vstack((Delta_ts_dtu, 1e9*Delta_ts_dtu/(499.2e6*128.), (vop*sp.speed_of_light*Delta_ts_dtu/(499.2e6*128.)))).T

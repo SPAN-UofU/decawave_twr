@@ -85,6 +85,10 @@ static uint64 t_rx2_ts; /* system counter when sync node receives */
 static uint64 t_tx2_stc; /* time when sync node transmits (in dtu) */
 static uint64 t_rx2_stc; /* system counter when sync node transmits */
 
+/* Data that goes in CC1200 packet */
+static uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
+static uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
+
 /* Declaration of static functions */
 static uint64 get_tx_timestamp_u64(void);
 static uint64 get_rx_timestamp_u64(void);
@@ -148,7 +152,6 @@ int main(void)
             /* Get the RX timestamp and the system counter and print to console*/
             t_rx2_ts = get_rx_timestamp_u64();
             t_rx2_stc = get_rx_syscount_u64();
-            printf("%lld %lld ", t_rx2_ts, t_rx2_stc);
 
             /* Clear good RX frame event in the DW1000 status register. */
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
@@ -178,7 +181,7 @@ int main(void)
                 /* Get the TX timestamp and the system counter and print to console */
                 t_tx2_ts = get_tx_timestamp_u64();
                 t_tx2_stc = get_tx_syscount_u64();
-                printf("%lld %lld\n", t_tx2_ts, t_tx2_stc);
+                printf("%lld %lld %lld %lld\n", t_rx2_ts, t_rx2_stc, t_tx2_ts, t_tx2_stc);
 
                 /* Clear TX frame sent event. */
                 dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
@@ -186,9 +189,17 @@ int main(void)
                 /* Increment the data frame sequence number (modulo 256). */
                 tx_msg[DATA_FRAME_SN_IDX]++;
             }
+            else
+            {
+                /* Print a row of zeros */
+                printf("0 0 0 0\n");
+            }
         }
         else
         {
+            /* Print a row of zeros */
+            printf("0 0 0 0\n");
+
             /* Clear RX error events in the DW1000 status register. */
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
 
@@ -197,6 +208,10 @@ int main(void)
         }
 
         /* Using CC1200, send out a packet containing delta and rx timestamp */
+        my_delta_ts = t_tx2_ts - t_rx2_ts; // this is delta in our diagram
+        my_delta_stc = t_tx2_stc - t_rx2_stc; // this is delta in our diagram
+
+
         // WRITE CODE HERE
 
     }

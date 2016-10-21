@@ -83,6 +83,12 @@ static uint64 t_rx1_ts; /* system counter when sync node transmits */
 static uint64 t_tx1_stc; /* time when sync node receives (in dtu) */
 static uint64 t_rx1_stc; /* system counter when sync node receives */
 
+/* Data in CC1200 packet */
+static uint64 t_rx2_ts; /* system counter when sync node receives */
+static uint64 t_rx2_stc; /* system counter when sync node transmits */
+static uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
+static uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
+
 /* Declaration of static functions */
 static uint64 get_tx_timestamp_u64(void);
 static uint64 get_rx_timestamp_u64(void);
@@ -122,7 +128,6 @@ int main(void)
 
     /* Set response frame timeout. */
     dwt_setrxtimeout(RX_RESP_TO_UUS);
-    //dwt_setpreambledetecttimeout(PRE_TIMEOUT);
 
     /* Loop forever sending and receiving frames periodically. */
     while (1)
@@ -134,6 +139,8 @@ int main(void)
         /* Start transmission, indicating that a response is expected so that reception is enabled immediately after the frame is sent. */
         if (dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED) == DWT_ERROR)
         {
+            /* Print a row of zeros */
+            printf("0 0 0 0\n");
             continue;
         }
 
@@ -144,7 +151,6 @@ int main(void)
         /* Get the transmitted timestamp and the system counter and print to console */
         t_tx1_ts = get_tx_timestamp_u64();
         t_tx1_stc = get_tx_syscount_u64();
-        printf("%lld %lld ", t_tx1_ts, t_tx1_stc);
 
         /* Poll for reception of a frame or error/timeout. See NOTE 8 below. */
         while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR)))
@@ -172,13 +178,16 @@ int main(void)
             /* Get the received timestamp and the system counter and print to console */
             t_rx1_ts = get_rx_timestamp_u64();
             t_rx1_stc = get_rx_syscount_u64();
-            printf("%lld %lld\n", t_rx1_ts, t_rx1_stc);
+            printf("%lld %lld %lld %lld\n", t_tx1_ts, t_tx1_stc, t_rx1_ts, t_rx1_stc);
 
             /* Clear good RX frame event in the DW1000 status register. */
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
         }
         else
         {
+            /* Print a row of zeros */
+            printf("0 0 0 0\n");
+
             /* Clear RX error/timeout events in the DW1000 status register. */
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
 
@@ -186,18 +195,70 @@ int main(void)
             dwt_rxreset();
         }
 
+        /* Await message from CC1200 that contains detla and rx timestamp */
+        // my_delta_ts = unpack_packet(); // this is delta in our diagram
+        // my_delta_stc = unpack_packet(); // this is delta in our diagram
+        // t_rx2_ts = unpack_packet(); // T_rx2 in our diagram
+        // t_rx2_stc = unpack_packet(); // T_rx2 in our diagram
+
+        /* Compute time-sync parameters delta and phi */
+        // Delta_ts = compute_prop_delay(t_tx1_ts,t_rx1_ts,my_delta_ts);
+        // Delta_stc = compute_prop_delay(t_tx1_stc,t_rx1_stc,my_delta_stc);
+        // phi_ts = compute_offset(t_rx2_ts,t_tx1_ts,my_delta_ts);
+        // phi_stc = compute_offset(t_rx2_stc,t_tx1_stc,my_delta_stc);
+
+        // WRITE CODE HERE
+
         /* Execute a delay between transmissions. */
         sleep_ms(TX_DELAY_MS);
 
         /* Increment the blink frame sequence number (modulo 256). */
         tx_msg[BLINK_FRAME_SN_IDX]++;
 
-        /* Await message from CC1200 that contains detla and rx timestamp */
-        // WRITE CODE HERE
-
-
     }
 }
+
+/*! ------------------------------------------------------------------------------------------------------------------
+ * @fn compute_offset()
+ *
+ * @brief Get the offset (phi) between the sync and ref node.
+ * 
+ * Input params
+ * @param  t_rx2 - timestamp when ref gets first message
+ * @param  t_tx1 - timestamp when sync sends first message
+ * @param  d     - prop. delay between ref and sync
+ *
+ *
+ * @return  64-bit value offset.
+ */
+static uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d)
+{
+    /* 32 subtractions give correct differences */
+    t_rx2_32 = (uint32) t_rx2;
+    t_tx1_32 = (uint32) t_tx1;
+    d_32     = (uint32) d;
+
+    return (uint64)(t_rx2_32 - t_tx1_32 - d_32);
+}
+
+/*! ------------------------------------------------------------------------------------------------------------------
+ * @fn compute_prop_delay()
+ *
+ * @brief Get the propagation delay (Delta) between the sync and ref node.
+ *
+ * Input params
+ * @param  t_tx1 - timestamp when sync sends first message
+ * @param  t_rx1 - timestamp when sync receives response
+ * @param  d     - difference between receive and send timestamps on the ref node
+ *
+ * @return  64-bit value propagation delay.
+ */
+static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d)
+{
+    return (t_rx1 - t_tx1 - d)/2
+}
+
+
 
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn get_tx_timestamp_u64()

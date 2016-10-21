@@ -228,8 +228,9 @@ int main(void)
 
         /* Execute a delay between ranging exchanges. */
         sleep_ms(RNG_DELAY_MS);
-    }
-}
+
+    } // end while loop
+} // end main
 
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn get_tx_timestamp_u64()

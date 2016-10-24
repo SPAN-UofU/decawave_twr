@@ -60,18 +60,11 @@ static uint8 tx_msg[] = {0x41, 0x8C, 0, 0x9A, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 'D',
 #define DATA_FRAME_SN_IDX 2
 #define DATA_FRAME_DEST_IDX 5
 
-/* Inter-frame delay period, in milliseconds. */
-#define TX_DELAY_MS 1000
-
 /* Buffer to store received frame. See NOTE 1 below. */
 #define FRAME_LEN_MAX 127
 static uint8 rx_buffer[FRAME_LEN_MAX];
 /* Index to access to source address of the blink frame in the rx_buffer array. */
 #define BLINK_FRAME_SRC_IDX 2
-/* Receive response timeout, expressed in UWB microseconds. See NOTE 3 below. */
-#define RX_RESP_TO_UUS 5000
-/* Preamble timeout, in multiple of PAC size. See NOTE 6 below. */
-#define PRE_TIMEOUT 8
 
 /* Hold copy of status register state here for reference so that it can be examined at a debug breakpoint. */
 static uint32 status_reg = 0;
@@ -123,10 +116,6 @@ int main(void)
     /* Apply default antenna delay value. See NOTE 1 below. */
     dwt_setrxantennadelay(RX_ANT_DLY);
     dwt_settxantennadelay(TX_ANT_DLY);
-
-    /* Set response time and preamble timeout for expected frames.*/
-    //dwt_setrxtimeout(RX_RESP_TO_UUS);
-    //dwt_setpreambledetecttimeout(PRE_TIMEOUT);
 
 
     /* Loop forever sending and receiving frames periodically. */

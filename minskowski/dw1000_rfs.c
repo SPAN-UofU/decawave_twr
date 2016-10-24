@@ -1,11 +1,10 @@
 /*! ----------------------------------------------------------------------------
  *  @file    main.c
- *  @brief   TX then wait for response example code
+ *  @brief   RX then send a response example code
  *
- *           This is a simple code example that sends a frame and then turns on the DW1000 receiver to receive a response. The response could be
- *           anything as no check is performed on it and it is only displayed in a local buffer but the sent frame is the one expected by the
- *           companion simple example "RX then send a response example code". After the response is received or if the reception timeouts, this code
- *           just go back to the sending of a new frame.
+ *           This is a simple code example that turns on the DW1000 receiver to receive a frame, (expecting the frame as sent by the companion simple
+ *           example "TX then wait for response example code"). When a frame is received and validated as the expected frame a response message is
+ *           sent, after which the code returns to await reception of another frame.
  *
  * @attention
  *
@@ -51,9 +50,16 @@ static dwt_config_t config = {
  *     - byte 10: encoding header (0x43 to indicate no extended ID, temperature, or battery status is carried in the message).
  *     - byte 11: EXT header (0x02 to indicate tag is listening for a response immediately after this message).
  *     - byte 12/13: frame check-sum, automatically set by DW1000. */
-static uint8 tx_msg[] = {0xC5, 0, 'D', 'E', 'C', 'A', 'W', 'A', 'V', 'E', 0x43, 0x02, 0, 0};
-/* Index to access to sequence number of the blink frame in the tx_msg array. */
+static uint8 sync_msg[] = {0xC5, 0, 'D', 'E', 'C', 'A', 'W', 'A', 'V', 'E', 0x43, 0x02, 0, 0};
+static uint8 ref_msg[] = {0x41, 0x8C, 0, 0x9A, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 'D', 'W', 0x10, 0x00, 0, 0, 0, 0};
+
+/* Index to access to sequence number of the blink frame in the sync_msg and ref_msg array. */
 #define BLINK_FRAME_SN_IDX 1
+#define BLINK_FRAME_SRC_IDX 2
+
+/* Indexes to access to sequence number and destination address of the data frame in the ref_msg array. */
+#define DATA_FRAME_SN_IDX 2
+#define DATA_FRAME_DEST_IDX 5
 
 /* Inter-frame delay period, in milliseconds. */
 #define TX_DELAY_MS 1000
@@ -66,7 +72,8 @@ static uint8 tx_msg[] = {0xC5, 0, 'D', 'E', 'C', 'A', 'W', 'A', 'V', 'E', 0x43, 
 
 /* Buffer to store received frame. See NOTE 4 below. */
 #define FRAME_LEN_MAX 127
-static uint8 rx_buffer[FRAME_LEN_MAX];
+static uint8 rx_sync_buffer[FRAME_LEN_MAX];
+static uint8 rx_ref_buffer[FRAME_LEN_MAX];
 
 /* Hold copy of status register state here for reference so that it can be examined at a debug breakpoint. */
 static uint32 status_reg = 0;
@@ -78,12 +85,14 @@ static uint16 frame_len = 0;
 typedef unsigned long long uint64;
 static uint64 t_tx1_ts; /* time when sync node transmits (in dtu) */
 static uint64 t_rx1_ts; /* system counter when sync node transmits */
+static uint64 t_tx2_ts; /* time when ref node receives (in dtu) */
+static uint64 t_rx2_ts; /* system counter when sync node receives */
 static uint64 t_tx1_stc; /* time when sync node receives (in dtu) */
 static uint64 t_rx1_stc; /* system counter when sync node receives */
+static uint64 t_tx2_stc; /* time when sync node transmits (in dtu) */
+static uint64 t_rx2_stc; /* system counter when sync node transmits */
 
 /* Data in CC1200 packet */
-static uint64 t_rx2_ts; /* system counter when sync node receives */
-static uint64 t_rx2_stc; /* system counter when sync node transmits */
 static uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
 static uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
 
@@ -98,7 +107,7 @@ static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d);
 /**
  * Application entry point.
  */
-int main(void)
+int main(int argc, char* argv[])
 {
     /* Start with board specific hardware init. */
     hardware_init();
@@ -123,100 +132,203 @@ int main(void)
     dwt_setrxantennadelay(RX_ANT_DLY);
     dwt_settxantennadelay(TX_ANT_DLY);
 
-    /* Set delay to turn reception on after transmission of the frame. See NOTE 2 below. */
-    dwt_setrxaftertxdelay(TX_TO_RX_DELAY_UUS);
-
-    /* Set response frame timeout. */
-    dwt_setrxtimeout(RX_RESP_TO_UUS);
-
-    /* Loop forever sending and receiving frames periodically. */
-    while (1)
+    // Run SYNC program
+    if(atoi(argv[3]))
     {
-        /* Write frame data to DW1000 and prepare transmission. See NOTE 7 below. */
-        dwt_writetxdata(sizeof(tx_msg), tx_msg, 0); /* Zero offset in TX buffer. */
-        dwt_writetxfctrl(sizeof(tx_msg), 0, 0); /* Zero offset in TX buffer, no ranging. */
+    	/* Set delay to turn reception on after transmission of the frame. See NOTE 2 below. */
+    	/* Set response frame timeout. */
+    	dwt_setrxaftertxdelay(TX_TO_RX_DELAY_UUS);    
+    	dwt_setrxtimeout(RX_RESP_TO_UUS);
 
-        /* Start transmission, indicating that a response is expected so that reception is enabled immediately after the frame is sent. */
-        if (dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED) == DWT_ERROR)
-        {
-            /* Print a row of zeros */
-            printf("0 0 0 0\n");
-            continue;
-        }
+	    /* Loop forever sending and receiving frames periodically. */
+	    while (1)
+	    {
+	        /* Write frame data to DW1000 and prepare transmission. See NOTE 7 below. */
+	        dwt_writetxdata(sizeof(sync_msg), sync_msg, 0); /* Zero offset in TX buffer. */
+	        dwt_writetxfctrl(sizeof(sync_msg), 0, 0); /* Zero offset in TX buffer, no ranging. */
 
-        /* Poll DW1000 until TX frame sent event set. */
-        while (!(dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS))
-        { };
+	        /* Start transmission, indicating that a response is expected so that reception is enabled immediately after the frame is sent. */
+	        if (dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED) == DWT_ERROR)
+	        {
+	            /* Print a row of zeros */
+	            printf("0 0 0 0\n");
+	            continue;
+	        }
 
-        /* Get the transmitted timestamp and the system counter and print to console */
-        t_tx1_ts = get_tx_timestamp_u64();
-        t_tx1_stc = get_tx_syscount_u64();
+	        /* Poll DW1000 until TX frame sent event set. */
+	        while (!(dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS))
+	        { };
 
-        /* Poll for reception of a frame or error/timeout. See NOTE 8 below. */
-        while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR)))
-        { };
+	        /* Get the transmitted timestamp and the system counter and print to console */
+	        t_tx1_ts = get_tx_timestamp_u64();
+	        t_tx1_stc = get_tx_syscount_u64();
 
-        /* Prepare to wait for response */
-        if (status_reg & SYS_STATUS_RXFCG)
-        {
-            // int i;
+	        /* Poll for reception of a frame or error/timeout. See NOTE 8 below. */
+	        while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR)))
+	        { };
 
-            // /* Clear local RX buffer to avoid having leftovers from previous receptions. This is not necessary but is included here to aid reading
-            //  * the RX buffer. */
-            // for (i = 0 ; i < FRAME_LEN_MAX; i++ )
-            // {
-            //     rx_buffer[i] = 0;
-            // }
+	        /* Prepare to wait for response */
+	        if (status_reg & SYS_STATUS_RXFCG)
+	        {
+	            // int i;
 
-            // /* A frame has been received, copy it to our local buffer. */
-            // frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
-            // if (frame_len <= FRAME_LEN_MAX)
-            // {
-            //     dwt_readrxdata(rx_buffer, frame_len, 0);
-            // }
+	            // /* Clear local RX buffer to avoid having leftovers from previous receptions. This is not necessary but is included here to aid reading
+	            //  * the RX buffer. */
+	            // for (i = 0 ; i < FRAME_LEN_MAX; i++ )
+	            // {
+	            //     rx_sync_buffer[i] = 0;
+	            // }
 
-            /* Get the received timestamp and the system counter and print to console */
-            t_rx1_ts = get_rx_timestamp_u64();
-            t_rx1_stc = get_rx_syscount_u64();
-            printf("%lld %lld %lld %lld\n", t_tx1_ts, t_tx1_stc, t_rx1_ts, t_rx1_stc);
+	            // /* A frame has been received, copy it to our local buffer. */
+	            // frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
+	            // if (frame_len <= FRAME_LEN_MAX)
+	            // {
+	            //     dwt_readrxdata(rx_sync_buffer, frame_len, 0);
+	            // }
 
-            /* Clear good RX frame event in the DW1000 status register. */
-            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
-        }
-        else
-        {
-            /* Print a row of zeros */
-            printf("0 0 0 0\n");
+	            /* Get the received timestamp and the system counter and print to console */
+	            t_rx1_ts = get_rx_timestamp_u64();
+	            t_rx1_stc = get_rx_syscount_u64();
+	            printf("%lld %lld %lld %lld\n", t_tx1_ts, t_tx1_stc, t_rx1_ts, t_rx1_stc);
 
-            /* Clear RX error/timeout events in the DW1000 status register. */
-            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
+	            /* Clear good RX frame event in the DW1000 status register. */
+	            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
+	        }
+	        // We did not get a response
+	        else
+	        {
+	        	/* Execute missed message routine */
+	        	missed_msg_routine();
 
-            /* Reset RX to properly reinitialise LDE operation. */
-            dwt_rxreset();
-        }
+	            /* Print a row of zeros */
+	            printf("0 0 0 0\n");
 
-        /* Await message from CC1200 that contains detla and rx timestamp */
-        // my_delta_ts = unpack_packet(); // this is delta in our diagram
-        // my_delta_stc = unpack_packet(); // this is delta in our diagram
-        // t_rx2_ts = unpack_packet(); // T_rx2 in our diagram
-        // t_rx2_stc = unpack_packet(); // T_rx2 in our diagram
+	            /* Clear RX error/timeout events in the DW1000 status register. */
+	            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
 
-        /* Compute time-sync parameters delta and phi */
-        // Delta_ts = compute_prop_delay(t_tx1_ts,t_rx1_ts,my_delta_ts);
-        // Delta_stc = compute_prop_delay(t_tx1_stc,t_rx1_stc,my_delta_stc);
-        // phi_ts = compute_offset(t_rx2_ts,t_tx1_ts,my_delta_ts);
-        // phi_stc = compute_offset(t_rx2_stc,t_tx1_stc,my_delta_stc);
+	            /* Reset RX to properly reinitialise LDE operation. */
+	            dwt_rxreset();
+	        }
 
-        // WRITE CODE HERE
+	        /* Poll for message from CC1200 that contains detla and rx timestamp */
+	        // while(!message_received())
+	        // { };
+	        //
+	        // my_delta_ts = unpack_packet(); // this is delta in our diagram
+	        // my_delta_stc = unpack_packet(); // this is delta in our diagram
+	        // t_rx2_ts = unpack_packet(); // T_rx2 in our diagram
+	        // t_rx2_stc = unpack_packet(); // T_rx2 in our diagram
 
-        /* Execute a delay between transmissions. */
-        sleep_ms(TX_DELAY_MS);
+	        /* Compute time-sync parameters delta and phi */
+	        // Delta_ts = compute_prop_delay(t_tx1_ts,t_rx1_ts,my_delta_ts);
+	        // Delta_stc = compute_prop_delay(t_tx1_stc,t_rx1_stc,my_delta_stc);
+	        // phi_ts = compute_offset(t_rx2_ts,t_tx1_ts,my_delta_ts);
+	        // phi_stc = compute_offset(t_rx2_stc,t_tx1_stc,my_delta_stc);
 
-        /* Increment the blink frame sequence number (modulo 256). */
-        tx_msg[BLINK_FRAME_SN_IDX]++;
+	        // WRITE CODE HERE
 
-    }
-}
+	        /* Execute a delay between transmissions. */
+	        sleep_ms(TX_DELAY_MS);
+
+	        /* Increment the blink frame sequence number (modulo 256). */
+	        sync_msg[BLINK_FRAME_SN_IDX]++;
+	    }
+
+    } // End of SYNC program
+
+    // Run REF program
+    else
+    {
+    	/* Loop forever sending and receiving frames periodically. */
+	    while (1)
+	    {
+	        /* Activate reception immediately. See NOTE 4 below. */
+	        dwt_rxenable(DWT_START_RX_IMMEDIATE);
+
+	        /* Poll until a frame is properly received or an error occurs. See NOTE 5 below.
+	         * STATUS register is 5 bytes long but, as the events we are looking at are in the lower bytes of the register, we can use this simplest API
+	         * function to access it. */
+	        while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR)))
+	        { };
+
+	        if (status_reg & SYS_STATUS_RXFCG)
+	        {
+	            /* A frame has been received, read it into the local buffer. */
+	            frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
+	            if (frame_len <= FRAME_LEN_MAX)
+	            {
+	                dwt_readrxdata(rx_ref_buffer, frame_len, 0);
+	            }
+
+	            /* Get the RX timestamp and the system counter and print to console*/
+	            t_rx2_ts = get_rx_timestamp_u64();
+	            t_rx2_stc = get_rx_syscount_u64();
+
+	            /* Clear good RX frame event in the DW1000 status register. */
+	            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
+
+	            /* Validate the frame is the one expected as sent by "TX then wait for a response" example. */
+	            if ((frame_len == 14) && (rx_buffer[0] == 0xC5) && (rx_buffer[10] == 0x43) && (rx_buffer[11] == 0x2))
+	            {
+	                // int i;
+
+	                // /* Copy source address of blink in response destination address. */
+	                // for (i = 0; i < 8; i++)
+	                // {
+	                //     ref_msg[DATA_FRAME_DEST_IDX + i] = rx_buffer[BLINK_FRAME_SRC_IDX + i];
+	                // }
+
+	                /* Write response frame data to DW1000 and prepare transmission. See NOTE 6 below.*/
+	                dwt_writetxdata(sizeof(ref_msg), ref_msg, 0); /* Zero offset in TX buffer. */
+	                dwt_writetxfctrl(sizeof(ref_msg), 0, 0); /* Zero offset in TX buffer, no ranging. */
+
+	                /* Send the response. */
+	                dwt_starttx(DWT_START_TX_IMMEDIATE);
+
+	                /* Poll DW1000 until TX frame sent event set. */
+	                while (!(dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS))
+	                { };
+
+	                /* Get the TX timestamp and the system counter and print to console */
+	                t_tx2_ts = get_tx_timestamp_u64();
+	                t_tx2_stc = get_tx_syscount_u64();
+	                printf("%lld %lld %lld %lld\n", t_rx2_ts, t_rx2_stc, t_tx2_ts, t_tx2_stc);
+
+	                /* Clear TX frame sent event. */
+	                dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
+
+	                /* Increment the data frame sequence number (modulo 256). */
+	                ref_msg[DATA_FRAME_SN_IDX]++;
+	            }
+	            // We received a DW message carrying a different payload than we anticipated
+	            else
+	            {
+	                /* Print a row of zeros */
+	                printf("0 0 0 0\n");
+	            }
+	        }
+	        else
+	        {
+	            /* Print a row of zeros */
+	            printf("0 0 0 0\n");
+
+	            /* Clear RX error events in the DW1000 status register. */
+	            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
+
+	            /* Reset RX to properly reinitialise LDE operation. */
+	            dwt_rxreset();
+	        }
+
+	        /* compute the time elapsed between reception and transmission (delta) */
+	        my_delta_ts = t_tx2_ts - t_rx2_ts; // this is delta in our diagram
+	        my_delta_stc = t_tx2_stc - t_rx2_stc; // this is delta in our diagram
+
+        	// WRITE CODE HERE
+        	// send out my_delta_ts, my_delta_stc, t_rx2_ts, and t_rx2_stc
+
+    } // end REF program
+
+}  // end main
 
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn compute_offset()
@@ -376,8 +488,8 @@ static uint64 get_rx_syscount_u64(void)
  *    time-stamping is required, DWT_LOADUCODE parameter should be used. See two-way ranging examples (e.g. examples 5a/5b).
  * 6. In a real application, for optimum performance within regulatory limits, it may be necessary to set TX pulse bandwidth and TX power, (using
  *    the dwt_configuretxrf API call) to per device calibrated values saved in the target system or the DW1000 OTP memory.
- * 7. dwt_writetxdata() takes the full size of tx_msg as a parameter but only copies (size - 2) bytes as the check-sum at the end of the frame is
- *    automatically appended by the DW1000. This means that our tx_msg could be two bytes shorter without losing any data (but the sizeof would not
+ * 7. dwt_writetxdata() takes the full size of sync_msg as a parameter but only copies (size - 2) bytes as the check-sum at the end of the frame is
+ *    automatically appended by the DW1000. This means that our sync_msg could be two bytes shorter without losing any data (but the sizeof would not
  *    work anymore then as we would still have to indicate the full length of the frame to dwt_writetxdata()).
  * 8. We use polled mode of operation here to keep the example as simple as possible but all status events can be used to generate interrupts. Please
  *    refer to DW1000 User Manual for more details on "interrupts".

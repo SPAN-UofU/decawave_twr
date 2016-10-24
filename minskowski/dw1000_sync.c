@@ -26,6 +26,8 @@
 #include "deca_regs.h"
 #include "platform.h"
 
+#define SPI_PATH    "/dev/spidev1.0"
+
 /* Default communication configuration. We use here EVK1000's default mode (mode 3). */
 static dwt_config_t config = {
     2,               /* Channel number. */
@@ -66,13 +68,13 @@ static uint8 tx_msg[] = {0xC5, 0, 'D', 'E', 'C', 'A', 'W', 'A', 'V', 'E', 0x43, 
 
 /* Buffer to store received frame. See NOTE 4 below. */
 #define FRAME_LEN_MAX 127
-static uint8 rx_buffer[FRAME_LEN_MAX];
+//static uint8 rx_buffer[FRAME_LEN_MAX];
 
 /* Hold copy of status register state here for reference so that it can be examined at a debug breakpoint. */
 static uint32 status_reg = 0;
 
 /* Hold copy of frame length of frame received (if good) so that it can be examined at a debug breakpoint. */
-static uint16 frame_len = 0;
+//static uint16 frame_len = 0;
 
 /* Hold copies of timestamps */
 typedef unsigned long long uint64;
@@ -82,18 +84,18 @@ static uint64 t_tx1_stc; /* time when sync node receives (in dtu) */
 static uint64 t_rx1_stc; /* system counter when sync node receives */
 
 /* Data in CC1200 packet */
-static uint64 t_rx2_ts; /* system counter when sync node receives */
-static uint64 t_rx2_stc; /* system counter when sync node transmits */
-static uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
-static uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
+//static uint64 t_rx2_ts; /* system counter when sync node receives */
+//static uint64 t_rx2_stc; /* system counter when sync node transmits */
+//static uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
+//static uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
 
 /* Declaration of static functions */
 static uint64 get_tx_timestamp_u64(void);
 static uint64 get_rx_timestamp_u64(void);
 static uint64 get_tx_syscount_u64(void);
 static uint64 get_rx_syscount_u64(void);
-static uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d);
-static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d);
+//static uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d);
+//static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d);
 
 /**
  * Application entry point.
@@ -101,7 +103,7 @@ static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d);
 int main(void)
 {
     /* Start with board specific hardware init. */
-    hardware_init();
+    hardware_init(SPI_PATH);
 
     /* Reset and initialise DW1000. See NOTE 5 below.
      * For initialisation, DW1000 clocks must be temporarily set to crystal speed. After initialisation SPI rate can be increased for optimum
@@ -231,16 +233,17 @@ int main(void)
  *
  * @return  64-bit value offset.
  */
+/*
 static uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d)
 {
-    /* 32 subtractions give correct differences */
+    // 32 subtractions give correct differences
     uint32 t_rx2_32 = (uint32) t_rx2;
     uint32 t_tx1_32 = (uint32) t_tx1;
     uint32 d_32     = (uint32) d;
 
     return (uint64)(t_rx2_32 - t_tx1_32 - d_32);
 }
-
+*/
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn compute_prop_delay()
  *
@@ -253,12 +256,12 @@ static uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d)
  *
  * @return  64-bit value propagation delay.
  */
+/*
 static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d)
 {
     return (t_rx1 - t_tx1 - d)/2;
 }
-
-
+*/
 
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn get_tx_timestamp_u64()

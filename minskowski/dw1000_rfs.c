@@ -25,6 +25,8 @@
 #include "deca_regs.h"
 #include "platform.h"
 
+#define SPI_PATH 	"/dev/spidev2.0"
+
 /* Default communication configuration. We use here EVK1000's default mode (mode 3). */
 static dwt_config_t config = {
     2,               /* Channel number. */
@@ -110,7 +112,7 @@ static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d);
 int main(int argc, char* argv[])
 {
     /* Start with board specific hardware init. */
-    hardware_init();
+    hardware_init(SPI_PATH);
 
     /* Reset and initialise DW1000. See NOTE 5 below.
      * For initialisation, DW1000 clocks must be temporarily set to crystal speed. After initialisation SPI rate can be increased for optimum

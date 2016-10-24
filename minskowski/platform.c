@@ -27,7 +27,6 @@
 
 #define SPI_SPEED_SLOW    				( 3000000)
 #define SPI_SPEED_FAST  	  			(10000000)
-#define SPI_PATH 						"/dev/spidev1.0"
 
 static uint32_t mode 	= 0;
 static uint8_t bits 	= 8;
@@ -36,10 +35,10 @@ static uint16_t delay 	= 0;
 
 static int fd;
 
-int RSTPin = 46; /* Reset GPIO pin - GPIO1_14 or pin 16 on the P8 header */
-int IRQPin = 47; /* Reset GPIO pin - GPIO1_15 or pin 15 on the P8 header */
-FILE *resetGPIO = NULL;
-FILE *irqGPIO = NULL;
+static int RSTPin = 46; /* Reset GPIO pin - GPIO1_14 or pin 16 on the P8 header */
+static int IRQPin = 47; /* Reset GPIO pin - GPIO1_15 or pin 15 on the P8 header */
+static FILE *resetGPIO = NULL;
+static FILE *irqGPIO = NULL;
 
 /* Wrapper function to be used by decadriver. Declared in deca_device_api.h */
 void deca_sleep(unsigned int time_ms)
@@ -151,7 +150,7 @@ int readfromspi(uint16 headerLength, const uint8 *headerBuffer, uint32 readlengt
 
 } // end readfromspi()
 
-int hardware_init (void)
+int hardware_init (char * spi_path)
 {
 	char setValue[4], GPIOString[4], GPIOValue[64], GPIODirection[64];
 
@@ -202,7 +201,7 @@ int hardware_init (void)
 	fclose(irqGPIO);
 
 	// The following calls set up the SPI bus properties
-	if((fd = open(SPI_PATH, O_RDWR))<0){
+	if((fd = open(spi_path, O_RDWR))<0){
 		perror("SPI Error: Can't open device.");
 		return -1;
 	}

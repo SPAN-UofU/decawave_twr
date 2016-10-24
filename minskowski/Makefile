@@ -25,13 +25,12 @@ LDFLAGS+=-lpthread -lm
 PRUSS_LIBS=-Wl,-rpath=$(LIBDIR_APP_LOADER) -L$(LIBDIR_APP_LOADER) -lprussdrv
 
 dw1000-objs := platform.o deca_device.o deca_params_init.o
+cc1200-objs := cc1200.o
 
-part: clean cc1200_msg
-
-all: clean SPI_bin.h cc1200_xo_sync cc1200_msg dw1000_ref dw1000_sync
+all: clean SPI_bin.h cc1200_xo_sync cc1200_msg cc1200_app dw1000_ref dw1000_sync
 
 clean:
-	rm -f cc1200_xo_sync cc1200_msg dw1000_ref dw1000_sync *.o *_bin.h
+	rm -f cc1200_xo_sync cc1200_msg cc1200_app dw1000_ref dw1000_sync *.o *_bin.h
 
 SPI_bin.h: SPI.p
 	$(PASM) -V3 -c $<
@@ -40,7 +39,10 @@ cc1200_xo_sync: cc1200_xo_sync.o
 	$(CROSS_COMPILE)gcc $(CFLAGS) -o $@ $^ $(PRUSS_LIBS) $(LDFLAGS)
 	
 cc1200_msg: cc1200_msg.o
-	$(CROSS_COMPILE)gcc $(CFLAGS) -o $@ $^ $(PRUSS_LIBS) $(LDFLAGS)
+	$(CROSS_COMPILE)gcc $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+cc1200_app: cc1200_app.o $(cc1200-objs)
+	$(CROSS_COMPILE)gcc $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 dw1000_ref: dw1000_ref.o $(dw1000-objs)
 	$(CROSS_COMPILE)gcc $(CFLAGS) -o $@ $^ $(LDFLAGS)

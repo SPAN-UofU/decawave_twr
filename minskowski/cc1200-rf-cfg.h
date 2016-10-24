@@ -39,11 +39,6 @@
 #ifndef CC1200_RF_CFG_H
 #define CC1200_RF_CFG_H
 
-// #include "contiki.h"
-
-// #include <stdint.h>
-// #include <stdlib.h>
-
 #include <linux/types.h>
 
 /*---------------------------------------------------------------------------*/
@@ -68,11 +63,6 @@ typedef struct cc1200_rf_cfg {
   const registerSetting_t *register_settings;
   /* The size of the register setup */
   size_t size_of_register_settings;
-  /*
-   * TX packet lifetime. Maximum duration of a TX packet including preamble,
-   * synch word + phy header, payload + CRC.
-   */
-  // rtimer_clock_t tx_pkt_lifetime;
   /* Base frequency in kHz */
   uint32_t chan_center_freq0;
   /* Channel spacing in kHz */

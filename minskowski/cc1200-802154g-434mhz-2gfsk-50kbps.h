@@ -195,7 +195,6 @@ static const registerSetting_t preferredSettings[]=
 const cc1200_rf_cfg_t cc1200_802154g_434mhz_2gfsk_50kbps = {
   .register_settings = preferredSettings,
   .size_of_register_settings = sizeof(preferredSettings),
-  // .tx_pkt_lifetime = (RTIMER_SECOND / 20),
   .chan_center_freq0 = RF_CFG_CHAN_CENTER_F0,
   .chan_spacing = RF_CFG_CHAN_SPACING,
   .min_channel = RF_CFG_MIN_CHANNEL,

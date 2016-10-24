@@ -1,0 +1,2 @@
+echo Initializing Capes
+echo "RFS" > /sys/devices/platform/bone_capemgr/slots;

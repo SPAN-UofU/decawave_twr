@@ -14,6 +14,7 @@
  *
  * Written by:
  * Peter Hillyard <peterhillyard@gmail.com>
+ * Anh Luong <luong@eng.utah.edu>
  */
 
 #include <stdio.h>

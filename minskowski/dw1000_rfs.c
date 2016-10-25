@@ -94,6 +94,7 @@ static uint16 frame_len = 0;
 
 /* Hold copies of timestamps */
 typedef unsigned long long uint64;
+typedef int64_t int64;
 static uint64 t_tx1_ts; /* time when sync node transmits (in dtu) */
 static uint64 t_rx1_ts; /* system counter when sync node transmits */
 static uint64 t_tx2_ts; /* time when ref node receives (in dtu) */
@@ -137,6 +138,7 @@ uint64 get_tx_syscount_u64(void);
 uint64 get_rx_syscount_u64(void);
 uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d);
 uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d);
+double dtu_2_s(uint64 d);
 
 /**
  * Application entry point.
@@ -144,15 +146,17 @@ uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d);
 int main(int argc, char* argv[])
 {
 	uint8_t isREF = 0;
+	uint16_t ant_delay = 0;
 	
-	if(argc != 2)
+	if(argc != 3)
 	{
 		printf("usage: %s REF/SYNC\n", argv[0]);
 		return 0;
 	}
-	else if(argc == 2)
+	else if(argc == 3)
 	{
 		isREF = atoi(argv[1]);
+		ant_delay = (uint16_t) atoi(argv[2]);
 	}
 
     /* Start with board specific hardware init. */
@@ -175,8 +179,8 @@ int main(int argc, char* argv[])
     dwt_configure(&config);
 
     /* Apply default antenna delay value.*/
-    dwt_setrxantennadelay(RX_ANT_DLY);
-    dwt_settxantennadelay(TX_ANT_DLY);
+    dwt_setrxantennadelay(ant_delay);
+    dwt_settxantennadelay(ant_delay);
 
     // Init CC1200
     cc1200_init(CC1200_PATH);
@@ -270,9 +274,9 @@ int main(int argc, char* argv[])
 
 	        /* Poll for message from CC1200 that contains detla and rx timestamp */
 			uint8_t retry = 0;
+			cc1200_msg_t rx_msg = {0, };
 			for(retry = 0; retry < 200; retry++)
-			{
-				cc1200_msg_t rx_msg = {0, };
+			{				
 				cc1200_read_register(CC1200_MARC_STATUS1, &status);
 				if(status == CC1200_MARC_STATUS1_RX_SUCCEED)
 				{
@@ -312,19 +316,23 @@ int main(int argc, char* argv[])
 				// }
 			}
 
-	        // while(!message_received())
-	        // { };
-	        //
-	        // my_delta_ts = unpack_packet(); // this is delta in our diagram
-	        // my_delta_stc = unpack_packet(); // this is delta in our diagram
-	        // t_rx2_ts = unpack_packet(); // T_rx2 in our diagram
-	        // t_rx2_stc = unpack_packet(); // T_rx2 in our diagram
+	        uint64 my_delta_ts = rx_msg.my_delta_ts; // this is delta in our diagram
+	        uint64 my_delta_stc = rx_msg.my_delta_stc; // this is delta in our diagram
+	        t_rx2_ts = rx_msg.t_rx2_ts; // T_rx2 in our diagram
+	        t_rx2_stc = rx_msg.t_rx2_stc; // T_rx2 in our diagram
 
 	        /* Compute time-sync parameters delta and phi */
-	        // Delta_ts = compute_prop_delay(t_tx1_ts,t_rx1_ts,my_delta_ts);
-	        // Delta_stc = compute_prop_delay(t_tx1_stc,t_rx1_stc,my_delta_stc);
-	        // phi_ts = compute_offset(t_rx2_ts,t_tx1_ts,my_delta_ts);
-	        // phi_stc = compute_offset(t_rx2_stc,t_tx1_stc,my_delta_stc);
+	        uint64 Delta_ts = compute_prop_delay(t_tx1_ts,t_rx1_ts,my_delta_ts);
+	        uint64 Delta_stc = compute_prop_delay(t_tx1_stc,t_rx1_stc,my_delta_stc);
+	        uint64 phi_ts = compute_offset(t_rx2_ts,t_tx1_ts,my_delta_ts);
+	        uint64 phi_stc = compute_offset(t_rx2_stc,t_tx1_stc,my_delta_stc);
+
+	        double tof = dtu_2_s(Delta_ts);
+
+	        printf("%lld %lld\n", Delta_ts, Delta_stc);
+	        printf("%3.9e sec\n", tof);
+	        printf("%4.3f m\n", tof*299792458.0*0.84);
+
 
 	        // WRITE CODE HERE
 
@@ -629,6 +637,11 @@ uint64 get_rx_syscount_u64(void)
         ts |= ts_tab[i];
     }
     return ts;
+}
+
+double dtu_2_s(uint64 d)
+{
+	return (double)d*(1.0/499.2e6/128.0);
 }
 
 /*****************************************************************************************************************************************************

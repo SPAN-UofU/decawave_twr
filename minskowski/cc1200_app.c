@@ -44,7 +44,7 @@
 extern const cc1200_rf_cfg_t CC1200_RF_CFG;
 #define CC1200_RF_CFG cc1200_802154g_434mhz_2gfsk_50kbps
 
-static uint8_t tx_msg[] = {0x18, 0, 'T', 'I', 'C', 'C', '1', '2', '0', '0', 'A', 'L'};
+static uint8_t tx_msg[] = {0x18, 0, 0, 'T', 'I', 'C', 'C', '1', '2', '0', '0', 'A', 'L'};
 static uint8_t rx_msg[ARRAY_SIZE(tx_msg)] = {0, };
 
 /// MAIN ///
@@ -78,6 +78,7 @@ int main(int argc, char* argv[]){
 
 		while(1)
 		{
+			uint8_t rx_msg[ARRAY_SIZE(tx_msg)] = {0, };
 			cc1200_read_register(CC1200_MARC_STATUS1, &status);
 			if(status == CC1200_MARC_STATUS1_RX_SUCCEED)
 			{
@@ -91,9 +92,15 @@ int main(int argc, char* argv[]){
 					}
 					else
 					{
-						cc1200_read_rxfifo(rx_msg, rxbytes);
+						int rx_fifo_bytes = rxbytes - 2;
+						cc1200_read_rxfifo(rx_msg, rx_fifo_bytes);
 
-						printf("MSG Received! DATA: %s\n", rx_msg);
+						printf("MSG Received! DATA: ");
+
+						int i;
+						for (i = 0; i < rx_fifo_bytes; i++)
+							printf("%02x ", rx_msg[i]);
+						printf(" bytes: %d\n", rxbytes);
 
 						cc1200_cmd_strobe(CC1200_SFRX);
 					}
@@ -109,7 +116,12 @@ int main(int argc, char* argv[]){
 		while(1)
 		{
 			tx_msg[1] = sizeof(tx_msg);
-			printf("size: %d\n", sizeof(tx_msg));
+			tx_msg[2]++;
+
+			int i;
+			for (i = 0; i < sizeof(tx_msg); i++)
+				printf("%02x ", tx_msg[i]);
+			printf(" size: %d\n", sizeof(tx_msg));
 
 			// Write data into FIFO
 			cc1200_write_txfifo(tx_msg, sizeof(tx_msg));
@@ -133,7 +145,9 @@ int main(int argc, char* argv[]){
 				usleep(1000);
 			};
 
-			printf("MSG SENT! %s\n", tx_msg);
+			printf("MSG SENT!\n");
+
+			cc1200_cmd_strobe(CC1200_SFTX);
 
 			usleep(1000000);
 		}

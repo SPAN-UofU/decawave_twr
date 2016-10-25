@@ -20,12 +20,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdint.h>
 
+// DW1000
 #include "deca_device_api.h"
 #include "deca_regs.h"
 #include "platform.h"
 
-#define SPI_PATH 	"/dev/spidev2.0"
+// CC1200
+#include "cc1200-const.h"
+#include "cc1200-rf-cfg.h"
+#include "cc1200-802154g-434mhz-2gfsk-50kbps.h"
+#include "cc1200.h"
+
+#define DW1000_PATH 	"/dev/spidev1.0"
+#define CC1200_PATH 	"/dev/spidev2.0"
 
 /* Default communication configuration. We use here EVK1000's default mode (mode 3). */
 static dwt_config_t config = {
@@ -94,25 +103,70 @@ static uint64 t_rx1_stc; /* system counter when sync node receives */
 static uint64 t_tx2_stc; /* time when sync node transmits (in dtu) */
 static uint64 t_rx2_stc; /* system counter when sync node transmits */
 
+// CC1200
+extern const cc1200_rf_cfg_t CC1200_RF_CFG;
+#define CC1200_RF_CFG cc1200_802154g_434mhz_2gfsk_50kbps
+
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
+typedef struct {
+	uint8  phr;
+	uint8  len;
+	uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
+	uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
+}cc1200_tx_msg_t;
+
+typedef struct {
+	uint8  phr;
+	uint8  len;
+	uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
+	uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
+	uint8  crc0;
+	uint8  crc1;
+}cc1200_rx_msg_t;
+
+
+cc1200_tx_msg_t cc1200_tx_msg = {
+	0x18,
+	sizeof(cc1200_tx_msg_t),
+	0xDEAD,
+	0xBEEF
+};
+
+cc1200_rx_msg_t cc1200_rx_msg;
+
+static uint8_t tx_msg[] = {0x18, 0, 0, 'T', 'I', 'C', 'C', '1', '2', '0', '0', 'A', 'L'};
+static uint8_t rx_msg[ARRAY_SIZE(tx_msg)] = {0, };
+
 /* Data in CC1200 packet */
-static uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
-static uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
 
 /* Declaration of static functions */
-static uint64 get_tx_timestamp_u64(void);
-static uint64 get_rx_timestamp_u64(void);
-static uint64 get_tx_syscount_u64(void);
-static uint64 get_rx_syscount_u64(void);
-static uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d);
-static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d);
+uint64 get_tx_timestamp_u64(void);
+uint64 get_rx_timestamp_u64(void);
+uint64 get_tx_syscount_u64(void);
+uint64 get_rx_syscount_u64(void);
+uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d);
+uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d);
 
 /**
  * Application entry point.
  */
 int main(int argc, char* argv[])
 {
+	uint8_t isREF = 0;
+	
+	if(argc != 2)
+	{
+		printf("usage: %s REF/SYNC\n", argv[0]);
+		return 0;
+	}
+	else if(argc == 2)
+	{
+		isREF = atoi(argv[1]);
+	}
+
     /* Start with board specific hardware init. */
-    hardware_init(SPI_PATH);
+    hardware_init(DW1000_PATH);
 
     /* Reset and initialise DW1000. See NOTE 5 below.
      * For initialisation, DW1000 clocks must be temporarily set to crystal speed. After initialisation SPI rate can be increased for optimum
@@ -134,8 +188,17 @@ int main(int argc, char* argv[])
     dwt_setrxantennadelay(RX_ANT_DLY);
     dwt_settxantennadelay(TX_ANT_DLY);
 
+    // Init CC1200
+    cc1200_init(CC1200_PATH);
+
+	// Write registers to radio
+	cc1200_write_reg_settings(CC1200_RF_CFG.register_settings, CC1200_RF_CFG.size_of_register_settings);
+
+	uint8_t rxbytes;
+	uint8_t status;
+
     // Run SYNC program
-    if(atoi(argv[3]))
+    if(!isREF)
     {
     	/* Set delay to turn reception on after transmission of the frame. See NOTE 2 below. */
     	/* Set response frame timeout. */
@@ -145,6 +208,9 @@ int main(int argc, char* argv[])
 	    /* Loop forever sending and receiving frames periodically. */
 	    while (1)
 	    {
+	    	// RX
+			cc1200_cmd_strobe(CC1200_SRX);
+
 	        /* Write frame data to DW1000 and prepare transmission. See NOTE 7 below. */
 	        dwt_writetxdata(sizeof(sync_msg), sync_msg, 0); /* Zero offset in TX buffer. */
 	        dwt_writetxfctrl(sizeof(sync_msg), 0, 0); /* Zero offset in TX buffer, no ranging. */
@@ -200,7 +266,7 @@ int main(int argc, char* argv[])
 	        else
 	        {
 	        	/* Execute missed message routine */
-	        	missed_msg_routine();
+	        	//missed_msg_routine();
 
 	            /* Print a row of zeros */
 	            printf("0 0 0 0\n");
@@ -213,6 +279,43 @@ int main(int argc, char* argv[])
 	        }
 
 	        /* Poll for message from CC1200 that contains detla and rx timestamp */
+			uint8_t retry = 0;
+			for(retry = 0; retry < 3; retry++)
+			{
+				uint8_t rx_msg[ARRAY_SIZE(tx_msg)] = {0, };
+				cc1200_read_register(CC1200_MARC_STATUS1, &status);
+				if(status == CC1200_MARC_STATUS1_RX_SUCCEED)
+				{
+					cc1200_read_register(CC1200_NUM_RXBYTES, &rxbytes);
+					if (rxbytes != 0)
+					{
+						cc1200_read_register(CC1200_MARCSTATE, &status);
+						if ((status & 0x1F) == CC1200_MARC_STATE_RX_FIFO_ERR)
+						{
+							cc1200_cmd_strobe(CC1200_SFRX);
+						}
+						else
+						{
+							int rx_fifo_bytes = rxbytes - 2;
+							cc1200_read_rxfifo(rx_msg, rx_fifo_bytes);
+
+							printf("MSG Received! DATA: ");
+
+							int i;
+							for (i = 0; i < rx_fifo_bytes; i++)
+								printf("%02x ", rx_msg[i]);
+							printf(" bytes: %d\n", rxbytes);
+
+							cc1200_cmd_strobe(CC1200_SFRX);
+
+							retry = 3;
+						}
+					}
+
+					cc1200_cmd_strobe(CC1200_SRX);
+				}
+			}
+
 	        // while(!message_received())
 	        // { };
 	        //
@@ -270,14 +373,14 @@ int main(int argc, char* argv[])
 	            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
 
 	            /* Validate the frame is the one expected as sent by "TX then wait for a response" example. */
-	            if ((frame_len == 14) && (rx_buffer[0] == 0xC5) && (rx_buffer[10] == 0x43) && (rx_buffer[11] == 0x2))
+	            if ((frame_len == 14) && (rx_ref_buffer[0] == 0xC5) && (rx_ref_buffer[10] == 0x43) && (rx_ref_buffer[11] == 0x2))
 	            {
 	                // int i;
 
 	                // /* Copy source address of blink in response destination address. */
 	                // for (i = 0; i < 8; i++)
 	                // {
-	                //     ref_msg[DATA_FRAME_DEST_IDX + i] = rx_buffer[BLINK_FRAME_SRC_IDX + i];
+	                //     ref_msg[DATA_FRAME_DEST_IDX + i] = rx_ref_buffer[BLINK_FRAME_SRC_IDX + i];
 	                // }
 
 	                /* Write response frame data to DW1000 and prepare transmission. See NOTE 6 below.*/
@@ -322,11 +425,58 @@ int main(int argc, char* argv[])
 	        }
 
 	        /* compute the time elapsed between reception and transmission (delta) */
-	        my_delta_ts = t_tx2_ts - t_rx2_ts; // this is delta in our diagram
-	        my_delta_stc = t_tx2_stc - t_rx2_stc; // this is delta in our diagram
+	        //cc1200_tx_msg.my_delta_ts  = t_tx2_ts - t_rx2_ts; // this is delta in our diagram
+	        //cc1200_tx_msg.my_delta_stc = t_tx2_stc - t_rx2_stc; // this is delta in our diagram
 
         	// WRITE CODE HERE
         	// send out my_delta_ts, my_delta_stc, t_rx2_ts, and t_rx2_stc
+			//printf("size: %d\n", sizeof(tx_msg));
+	        
+	        //usleep(1000);
+
+			// Write data into FIFO
+			//cc1200_write_txfifo((uint8 *)&cc1200_tx_msg, sizeof(cc1200_tx_msg));
+	        uint8_t retry = 0;
+			for(retry = 0; retry < 3; retry++)
+			{
+				tx_msg[1] = sizeof(tx_msg);
+				tx_msg[2]++;
+
+				int i;
+				for (i = 0; i < sizeof(tx_msg); i++)
+					printf("%02x ", tx_msg[i]);
+				printf(" size: %d\n", sizeof(tx_msg));
+
+				// Write data into FIFO
+				cc1200_write_txfifo(tx_msg, sizeof(tx_msg));
+
+				// Check status
+				cc1200_get_status(&status);
+				if ((status & 0xF0) == CC1200_STATUS_BYTE_TX_FIFO_ERR) {
+					printf("cc1200 tx fifo error\n");
+					cc1200_cmd_strobe(CC1200_SFTX);
+					continue;
+				}
+
+				// TX
+				cc1200_cmd_strobe(CC1200_STX);
+
+				// Check if TX completed
+				cc1200_read_register(CC1200_MARC_STATUS1, &status);
+				while(status != CC1200_MARC_STATUS1_TX_SUCCEED)
+				{
+					cc1200_read_register(CC1200_MARC_STATUS1, &status);
+					usleep(1000);
+				};
+
+				printf("MSG SENT!\n");
+
+				cc1200_cmd_strobe(CC1200_SFTX);
+
+				retry = 3;
+			}
+
+	    }
 
     } // end REF program
 
@@ -345,7 +495,7 @@ int main(int argc, char* argv[])
  *
  * @return  64-bit value offset.
  */
-static uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d)
+uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d)
 {
     /* 32 subtractions give correct differences */
     uint32 t_rx2_32 = (uint32) t_rx2;
@@ -367,7 +517,7 @@ static uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d)
  *
  * @return  64-bit value propagation delay.
  */
-static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d)
+uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d)
 {
     return (t_rx1 - t_tx1 - d)/2;
 }
@@ -384,7 +534,7 @@ static uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d)
  *
  * @return  64-bit value of the read time-stamp.
  */
-static uint64 get_tx_timestamp_u64(void)
+uint64 get_tx_timestamp_u64(void)
 {
     uint8 ts_tab[5];
     uint64 ts = 0;
@@ -408,7 +558,7 @@ static uint64 get_tx_timestamp_u64(void)
  *
  * @return  64-bit value of the read time-stamp.
  */
-static uint64 get_rx_timestamp_u64(void)
+uint64 get_rx_timestamp_u64(void)
 {
     uint8 ts_tab[5];
     uint64 ts = 0;
@@ -432,7 +582,7 @@ static uint64 get_rx_timestamp_u64(void)
  *
  * @return  64-bit value of the read system counter.
  */
-static uint64 get_tx_syscount_u64(void)
+uint64 get_tx_syscount_u64(void)
 {
     uint8 ts_tab[5];
     uint64 ts = 0;
@@ -456,7 +606,7 @@ static uint64 get_tx_syscount_u64(void)
  *
  * @return  64-bit value of the read system counter.
  */
-static uint64 get_rx_syscount_u64(void)
+uint64 get_rx_syscount_u64(void)
 {
     uint8 ts_tab[5];
     uint64 ts = 0;

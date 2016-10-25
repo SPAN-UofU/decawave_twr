@@ -198,7 +198,7 @@ int cc1200_read_rxfifo(uint8_t *data, uint8_t len)
 	int ret;
 	struct spi_ioc_transfer transfer = {
 		.tx_buf = (unsigned long)buf,
-		.rx_buf = (unsigned long)data,
+		.rx_buf = (unsigned long)buf,
 		.len = 0,
 		.delay_usecs = delay,
 		.speed_hz = speed,
@@ -211,6 +211,14 @@ int cc1200_read_rxfifo(uint8_t *data, uint8_t len)
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer);
 	if(ret < 0)
 		return ret;
+	else
+	{
+		int j;
+		for (j = 0; j < transfer.len; j++)
+		{
+			data[j] = buf[j+1];
+		}
+	}
 
 	// send the SPI message (all of the above fields, inc. buffers)
 	return ret;

@@ -112,31 +112,21 @@ extern const cc1200_rf_cfg_t CC1200_RF_CFG;
 typedef struct {
 	uint8  phr;
 	uint8  len;
+	uint64 t_rx2_ts;
+	uint64 t_rx2_stc;
 	uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
 	uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
-}cc1200_tx_msg_t;
+}cc1200_msg_t;
 
-typedef struct {
-	uint8  phr;
-	uint8  len;
-	uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
-	uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
-	uint8  crc0;
-	uint8  crc1;
-}cc1200_rx_msg_t;
-
-
-cc1200_tx_msg_t cc1200_tx_msg = {
+cc1200_msg_t cc1200_msg = {
 	0x18,
-	sizeof(cc1200_tx_msg_t),
+	sizeof(cc1200_msg_t),
 	0xDEAD,
 	0xBEEF
 };
 
-cc1200_rx_msg_t cc1200_rx_msg;
-
-static uint8_t tx_msg[] = {0x18, 0, 0, 'T', 'I', 'C', 'C', '1', '2', '0', '0', 'A', 'L'};
-static uint8_t rx_msg[ARRAY_SIZE(tx_msg)] = {0, };
+//static uint8_t tx_msg[] = {0x18, 0, 0, 'T', 'I', 'C', 'C', '1', '2', '0', '0', 'A', 'L'};
+//static uint8_t rx_msg[ARRAY_SIZE(tx_msg)] = {0, };
 
 /* Data in CC1200 packet */
 
@@ -219,7 +209,7 @@ int main(int argc, char* argv[])
 	        if (dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED) == DWT_ERROR)
 	        {
 	            /* Print a row of zeros */
-	            printf("0 0 0 0\n");
+	            printf("0 0 0 0 TX ERROR\n");
 	            continue;
 	        }
 
@@ -269,7 +259,7 @@ int main(int argc, char* argv[])
 	        	//missed_msg_routine();
 
 	            /* Print a row of zeros */
-	            printf("0 0 0 0\n");
+	            printf("0 0 0 0 RX ERROR\n");
 
 	            /* Clear RX error/timeout events in the DW1000 status register. */
 	            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
@@ -280,9 +270,9 @@ int main(int argc, char* argv[])
 
 	        /* Poll for message from CC1200 that contains detla and rx timestamp */
 			uint8_t retry = 0;
-			for(retry = 0; retry < 3; retry++)
+			for(retry = 0; retry < 200; retry++)
 			{
-				uint8_t rx_msg[ARRAY_SIZE(tx_msg)] = {0, };
+				cc1200_msg_t rx_msg = {0, };
 				cc1200_read_register(CC1200_MARC_STATUS1, &status);
 				if(status == CC1200_MARC_STATUS1_RX_SUCCEED)
 				{
@@ -297,23 +287,29 @@ int main(int argc, char* argv[])
 						else
 						{
 							int rx_fifo_bytes = rxbytes - 2;
-							cc1200_read_rxfifo(rx_msg, rx_fifo_bytes);
+							cc1200_read_rxfifo((uint8_t *)&rx_msg, rx_fifo_bytes);
 
-							printf("MSG Received! DATA: ");
+							printf("retry=%d. MSG Received! DATA: ", retry);
 
-							int i;
-							for (i = 0; i < rx_fifo_bytes; i++)
-								printf("%02x ", rx_msg[i]);
-							printf(" bytes: %d\n", rxbytes);
+							printf("%02x %02x %lld %lld %lld %lld size: %d\n", rx_msg.phr, rx_msg.len, rx_msg.t_rx2_ts, rx_msg.t_rx2_stc, rx_msg.my_delta_ts, rx_msg.my_delta_stc, rxbytes);
+
+							//int i;
+							//for (i = 0; i < rx_fifo_bytes; i++)
+							//	printf("%02x ", rx_msg[i]);
+							//printf(" bytes: %d\n", rxbytes);
 
 							cc1200_cmd_strobe(CC1200_SFRX);
 
-							retry = 3;
+							retry = 200;
 						}
 					}
 
 					cc1200_cmd_strobe(CC1200_SRX);
 				}
+				// if(retry % 10 == 0)
+				// {
+				// 	printf("retry=%d.\n", retry);
+				// }
 			}
 
 	        // while(!message_received())
@@ -388,7 +384,12 @@ int main(int argc, char* argv[])
 	                dwt_writetxfctrl(sizeof(ref_msg), 0, 0); /* Zero offset in TX buffer, no ranging. */
 
 	                /* Send the response. */
-	                dwt_starttx(DWT_START_TX_IMMEDIATE);
+	                if(dwt_starttx(DWT_START_TX_IMMEDIATE) == DWT_ERROR)
+	                {
+	                	/* Print a row of zeros */
+			            printf("0 0 0 0 TX ERROR\n");
+			            continue;
+	                }
 
 	                /* Poll DW1000 until TX frame sent event set. */
 	                while (!(dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS))
@@ -409,13 +410,13 @@ int main(int argc, char* argv[])
 	            else
 	            {
 	                /* Print a row of zeros */
-	                printf("0 0 0 0\n");
+	                printf("0 0 0 0 RX FROM INVALID SOURCE\n");
 	            }
 	        }
 	        else
 	        {
 	            /* Print a row of zeros */
-	            printf("0 0 0 0\n");
+	            printf("0 0 0 0 RX ERROR\n");
 
 	            /* Clear RX error events in the DW1000 status register. */
 	            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
@@ -425,30 +426,40 @@ int main(int argc, char* argv[])
 	        }
 
 	        /* compute the time elapsed between reception and transmission (delta) */
-	        //cc1200_tx_msg.my_delta_ts  = t_tx2_ts - t_rx2_ts; // this is delta in our diagram
-	        //cc1200_tx_msg.my_delta_stc = t_tx2_stc - t_rx2_stc; // this is delta in our diagram
-
+	        
         	// WRITE CODE HERE
         	// send out my_delta_ts, my_delta_stc, t_rx2_ts, and t_rx2_stc
 			//printf("size: %d\n", sizeof(tx_msg));
 	        
-	        //usleep(1000);
+	        usleep(2000);
 
 			// Write data into FIFO
 			//cc1200_write_txfifo((uint8 *)&cc1200_tx_msg, sizeof(cc1200_tx_msg));
 	        uint8_t retry = 0;
 			for(retry = 0; retry < 3; retry++)
 			{
-				tx_msg[1] = sizeof(tx_msg);
-				tx_msg[2]++;
+				//tx_msg[1] = sizeof(tx_msg);
+				//tx_msg[2]++;
 
-				int i;
-				for (i = 0; i < sizeof(tx_msg); i++)
-					printf("%02x ", tx_msg[i]);
-				printf(" size: %d\n", sizeof(tx_msg));
+				//int i;
+				//for (i = 0; i < sizeof(tx_msg); i++)
+				//	printf("%02x ", tx_msg[i]);
+				//printf(" size: %d\n", sizeof(tx_msg));
 
 				// Write data into FIFO
-				cc1200_write_txfifo(tx_msg, sizeof(tx_msg));
+				//cc1200_write_txfifo(tx_msg, sizeof(tx_msg));
+
+				cc1200_msg.phr = 0x18;
+				cc1200_msg.len = sizeof(cc1200_msg);
+				cc1200_msg.t_rx2_ts = t_rx2_ts;
+				cc1200_msg.t_rx2_stc = t_rx2_stc;
+				cc1200_msg.my_delta_ts  = t_tx2_ts - t_rx2_ts; // this is delta in our diagram
+	        	cc1200_msg.my_delta_stc = t_tx2_stc - t_rx2_stc; // this is delta in our diagram
+				
+				printf("%02x %02x %lld %lld %lld %lld size: %d\n", cc1200_msg.phr, cc1200_msg.len, cc1200_msg.t_rx2_ts, cc1200_msg.t_rx2_stc, cc1200_msg.my_delta_ts, cc1200_msg.my_delta_stc, sizeof(cc1200_msg));
+
+				// Write data into FIFO
+				cc1200_write_txfifo((uint8_t *)&cc1200_msg, sizeof(cc1200_msg));				
 
 				// Check status
 				cc1200_get_status(&status);
@@ -469,7 +480,7 @@ int main(int argc, char* argv[])
 					usleep(1000);
 				};
 
-				printf("MSG SENT!\n");
+				printf("MSG SENT! retry=%d\n", retry);
 
 				cc1200_cmd_strobe(CC1200_SFTX);
 

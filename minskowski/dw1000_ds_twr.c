@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <string.h>
 
 // DW1000
 #include "deca_device_api.h"
@@ -159,7 +160,7 @@ int main(int argc, char* argv[])
 	}
 	else if(argc == 3)
 	{
-		isREF = atoi(argv[1]);
+		isRESP = atoi(argv[1]);
 		ant_delay = (uint16_t) atoi(argv[2]);
 	}
 
@@ -193,6 +194,7 @@ int main(int argc, char* argv[])
     // Run INITIATOR program
     if(!isRESP)
     {
+    	printf("Starting INITIATOR\n");
 
 	    /* INITIATOR ONLY */
 	    /* Set expected response's delay and timeout. See NOTE 4, 5 and 6 below.
@@ -212,6 +214,8 @@ int main(int argc, char* argv[])
 	         * set by dwt_setrxaftertxdelay() has elapsed. */
 	        dwt_starttx(DWT_START_TX_IMMEDIATE | DWT_RESPONSE_EXPECTED);
 
+	        printf("Message 1 sent\n");
+
 	        /* We assume that the transmission is achieved correctly, poll for reception of a frame or error/timeout. See NOTE 9 below. */
 	        while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR)))
 	        { };
@@ -221,6 +225,7 @@ int main(int argc, char* argv[])
 
 	        if (status_reg & SYS_STATUS_RXFCG)
 	        {
+	        	printf("Message received\n");
 	            uint32 frame_len;
 
 	            /* Clear good RX frame event and TX frame sent in the DW1000 status register. */
@@ -270,6 +275,8 @@ int main(int argc, char* argv[])
 	                    while (!(dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS))
 	                    { };
 
+	                	printf("Message 2 sent\n");
+
 	                    /* Clear TXFRS event. */
 	                    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
 
@@ -294,6 +301,7 @@ int main(int argc, char* argv[])
 	else
 	{
 	    /* RESPONDER */
+	    printf("Starting RESPONDER\n");
 
 	    /* Loop forever responding to ranging requests. */
 	    while (1)
@@ -310,6 +318,8 @@ int main(int argc, char* argv[])
 
 	        if (status_reg & SYS_STATUS_RXFCG)
 	        {
+	        	printf("Message 1 received\n");
+
 	            uint32 frame_len;
 
 	            /* Clear good RX frame event in the DW1000 status register. */
@@ -317,8 +327,9 @@ int main(int argc, char* argv[])
 
 	            /* A frame has been received, read it into the local buffer. */
 	            frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFL_MASK_1023;
-	            if (frame_len <= RX_BUFFER_LEN_RESP)
+	            if (frame_len <= RX_BUF_LEN_RESP)
 	            {
+	            	printf("frame len no greater than rx_buf_len_resp\n");
 	                dwt_readrxdata(rx_buffer_resp, frame_len, 0);
 	            }
 
@@ -327,6 +338,7 @@ int main(int argc, char* argv[])
 	            rx_buffer_resp[ALL_MSG_SN_IDX] = 0;
 	            if (memcmp(rx_buffer_resp, rx_poll_msg, ALL_MSG_COMMON_LEN) == 0)
 	            {
+	            	printf("Received frame the same as expected frame\n");
 	                uint32 resp_tx_time;
 	                int ret;
 
@@ -350,8 +362,11 @@ int main(int argc, char* argv[])
 	                /* If dwt_starttx() returns an error, abandon this ranging exchange and proceed to the next one. See NOTE 11 below. */
 	                if (ret == DWT_ERROR)
 	                {
+	                	printf("Ranging exchange abandoned\n");
 	                    continue;
 	                }
+
+	                printf("Message Sent\n");
 
 	                /* Poll for reception of expected "final" frame or error/timeout. See NOTE 8 below. */
 	                while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR)))
@@ -362,12 +377,13 @@ int main(int argc, char* argv[])
 
 	                if (status_reg & SYS_STATUS_RXFCG)
 	                {
+	                	printf("Message 2 received\n");
 	                    /* Clear good RX frame event and TX frame sent in the DW1000 status register. */
 	                    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG | SYS_STATUS_TXFRS);
 
 	                    /* A frame has been received, read it into the local buffer. */
 	                    frame_len = dwt_read32bitreg(RX_FINFO_ID) & RX_FINFO_RXFLEN_MASK;
-	                    if (frame_len <= RX_BUF_LEN)
+	                    if (frame_len <= RX_BUF_LEN_RESP)
 	                    {
 	                        dwt_readrxdata(rx_buffer_resp, frame_len, 0);
 	                    }

@@ -62,17 +62,6 @@ static uint8 rx_poll_msg[] = {0x41, 0x88, 0, 0xCA, 0xDE, 'W', 'A', 'V', 'E', 0x2
 static uint8 tx_resp_msg[] = {0x41, 0x88, 0, 0xCA, 0xDE, 'V', 'E', 'W', 'A', 0x10, 0x02, 0, 0, 0, 0};
 static uint8 rx_final_msg[] = {0x41, 0x88, 0, 0xCA, 0xDE, 'W', 'A', 'V', 'E', 0x23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-
-
-
-
-
-
-
-
-
-
-
 /* Length of the common part of the message (up to and including the function code, see NOTE 2 below). */
 #define ALL_MSG_COMMON_LEN 10
 /* Indexes to access some of the fields in the frames defined above. */
@@ -148,20 +137,6 @@ static void final_msg_get_ts(const uint8 *ts_field, uint32 *ts);
 static double tof;
 static double distance;
 
-/* String used to display measured distance on LCD screen (16 characters maximum). */
-char dist_str[16] = {0};
-
-
-
-
-
-
-
-
-
-
-
-
 /*! ------------------------------------------------------------------------------------------------------------------
  * @fn main()
  *
@@ -208,8 +183,8 @@ int main(int argc, char* argv[])
     dwt_configure(&config);
 
     /* Apply default antenna delay value. See NOTE 1 below. */
-    dwt_setrxantennadelay(RX_ANT_DLY);
-    dwt_settxantennadelay(TX_ANT_DLY);
+    dwt_setrxantennadelay(ant_delay);
+    dwt_settxantennadelay(ant_delay);
 
     /* Set expected response's delay and timeout. See NOTE 4, 5 and 6 below.
      * As this example only handles one incoming frame with always the same delay and timeout, those values can be set here once for all. */

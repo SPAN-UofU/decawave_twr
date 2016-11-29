@@ -173,7 +173,7 @@ int main(int argc, char* argv[])
     spi_set_rate_low();
     if (dwt_initialise(DWT_LOADUCODE) == DWT_ERROR)
     {
-        lcd_display_str("INIT FAILED");
+        printf("%s\n", "INIT FAILED");
         while (1)
         { };
     }
@@ -189,7 +189,6 @@ int main(int argc, char* argv[])
     /* Set expected response's delay and timeout. See NOTE 4, 5 and 6 below.
      * As this example only handles one incoming frame with always the same delay and timeout, those values can be set here once for all. */
     dwt_setpreambledetecttimeout(PRE_TIMEOUT); /* Sets the receiver to timeout and disable when no preamble is received within the specified time 5.31 api */
-
 
     // Run INITIATOR program
     if(!isRESP)
@@ -404,6 +403,9 @@ int main(int argc, char* argv[])
 
 	                        tof = tof_dtu * DWT_TIME_UNITS;
 	                        distance = tof * SPEED_OF_LIGHT;
+
+	                        printf("%3.9e sec\n", tof);
+	        				printf("%4.3f m\n", tof*299792458.0*0.84);
 
 	                        /* Display computed distance on LCD. */
 	                        //sprintf(dist_str, "DIST: %3.2f m", distance);

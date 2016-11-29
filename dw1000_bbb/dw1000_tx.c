@@ -16,6 +16,10 @@
  * Anh Luong <luong@eng.utah.edu>
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
 #include "deca_device_api.h"
 #include "deca_regs.h"
 #include "platform.h"
@@ -72,6 +76,8 @@ int main(void)
     /* Configure DW1000. See NOTE 3 below. */
     dwt_configure(&config);
 
+    printf("%s\n", APP_NAME);
+
     /* Loop forever sending frames periodically. */
     while(1)
     {
@@ -96,6 +102,8 @@ int main(void)
 
         /* Increment the blink frame sequence number (modulo 256). */
         tx_msg[BLINK_FRAME_SN_IDX]++;
+
+        printf("MSG SENT!\n");
     }
 }
 ////////////////////////////////////////////////////////////////////////////////

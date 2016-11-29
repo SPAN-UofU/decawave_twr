@@ -12,11 +12,20 @@
  *
  * All rights reserved.
  *
- * @author Decawave
+ * Written by:
+ * Peter Hillyard <peterhillyard@gmail.com>
+ * Anh Luong <luong@eng.utah.edu>
  */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
 #include "deca_device_api.h"
 #include "deca_regs.h"
 #include "platform.h"
+
+#define SPI_PATH    "/dev/spidev1.0"
 
 /* Default communication configuration. We use here EVK1000's default mode (mode 3). */
 static dwt_config_t config = {
@@ -53,18 +62,11 @@ static uint8 tx_msg[] = {0x41, 0x8C, 0, 0x9A, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 'D',
 #define DATA_FRAME_SN_IDX 2
 #define DATA_FRAME_DEST_IDX 5
 
-/* Inter-frame delay period, in milliseconds. */
-#define TX_DELAY_MS 1000
-
 /* Buffer to store received frame. See NOTE 1 below. */
 #define FRAME_LEN_MAX 127
 static uint8 rx_buffer[FRAME_LEN_MAX];
 /* Index to access to source address of the blink frame in the rx_buffer array. */
 #define BLINK_FRAME_SRC_IDX 2
-/* Receive response timeout, expressed in UWB microseconds. See NOTE 3 below. */
-#define RX_RESP_TO_UUS 5000
-/* Preamble timeout, in multiple of PAC size. See NOTE 6 below. */
-#define PRE_TIMEOUT 8
 
 /* Hold copy of status register state here for reference so that it can be examined at a debug breakpoint. */
 static uint32 status_reg = 0;
@@ -79,6 +81,10 @@ static uint64 t_rx2_ts; /* system counter when sync node receives */
 static uint64 t_tx2_stc; /* time when sync node transmits (in dtu) */
 static uint64 t_rx2_stc; /* system counter when sync node transmits */
 
+/* Data that goes in CC1200 packet */
+static uint64 my_delta_ts; /* Diff between T_tx2 and T_rx2 timestamps (dtu) */
+static uint64 my_delta_stc; /* Diff between T_tx2 and T_rx2 system counter (dtu) */
+
 /* Declaration of static functions */
 static uint64 get_tx_timestamp_u64(void);
 static uint64 get_rx_timestamp_u64(void);
@@ -91,7 +97,7 @@ static uint64 get_rx_syscount_u64(void);
 int main(void)
 {
     /* Start with board specific hardware init. */
-    hardware_init();
+    hardware_init(SPI_PATH);
 
     /* Reset and initialise DW1000. See NOTE 2 below.
      * For initialisation, DW1000 clocks must be temporarily set to crystal speed. After initialisation SPI rate can be increased for optimum
@@ -112,10 +118,6 @@ int main(void)
     /* Apply default antenna delay value. See NOTE 1 below. */
     dwt_setrxantennadelay(RX_ANT_DLY);
     dwt_settxantennadelay(TX_ANT_DLY);
-
-    /* Set response time and preamble timeout for expected frames.*/
-    dwt_setrxtimeout(RX_RESP_TO_UUS);
-    dwt_setpreambledetecttimeout(PRE_TIMEOUT);
 
 
     /* Loop forever sending and receiving frames periodically. */
@@ -142,7 +144,6 @@ int main(void)
             /* Get the RX timestamp and the system counter and print to console*/
             t_rx2_ts = get_rx_timestamp_u64();
             t_rx2_stc = get_rx_syscount_u64();
-            printf("\nT_rx2: %d, STC_rx2: %d\n", t_rx2_ts, t_rx2_stc);
 
             /* Clear good RX frame event in the DW1000 status register. */
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
@@ -171,8 +172,8 @@ int main(void)
 
                 /* Get the TX timestamp and the system counter and print to console */
                 t_tx2_ts = get_tx_timestamp_u64();
-                t_tx2_stc = get_rx_syscount_u64();
-                printf("\nT_tx2: %d, STC_tx2: %d\n", t_tx2_ts, t_tx2_stc);
+                t_tx2_stc = get_tx_syscount_u64();
+                printf("%lld %lld %lld %lld\n", t_rx2_ts, t_rx2_stc, t_tx2_ts, t_tx2_stc);
 
                 /* Clear TX frame sent event. */
                 dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_TXFRS);
@@ -180,9 +181,17 @@ int main(void)
                 /* Increment the data frame sequence number (modulo 256). */
                 tx_msg[DATA_FRAME_SN_IDX]++;
             }
+            else
+            {
+                /* Print a row of zeros */
+                printf("0 0 0 0\n");
+            }
         }
         else
         {
+            /* Print a row of zeros */
+            printf("0 0 0 0\n");
+
             /* Clear RX error events in the DW1000 status register. */
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
 
@@ -191,6 +200,10 @@ int main(void)
         }
 
         /* Using CC1200, send out a packet containing delta and rx timestamp */
+        my_delta_ts = t_tx2_ts - t_rx2_ts; // this is delta in our diagram
+        my_delta_stc = t_tx2_stc - t_rx2_stc; // this is delta in our diagram
+
+
         // WRITE CODE HERE
 
     }

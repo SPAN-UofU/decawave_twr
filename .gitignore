@@ -1,5 +1,4 @@
 *.pdf
-*.txt
 *.coproj
 Libraries/
 Linkers/
@@ -13,4 +12,7 @@ RemoteSystemsTempFiles/
 *.c~
 *.h~
 *.o
+*.DS_Store
+.project
+.pydevproject
 

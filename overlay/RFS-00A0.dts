@@ -1,0 +1,154 @@
+/*
+* Copyright (C) 2015 Anh Luong <luong@eng.utah.edu>
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation.
+*/
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "ti,beaglebone", "ti,beaglebone-black", "ti,beaglebone-green";
+
+	/* identification */
+	part-number = "RFS";
+	version = "00A0";
+
+	/* state the resources this cape uses */
+	exclusive-use =
+		/* the pin header uses */
+		
+		/* DW1000 */
+		"P8.16",	/* reset */
+		"P8.15",	/* irq */
+		"P9.22",	/* spi0_sclk */
+		"P9.21",	/* spi0_d0 */
+		"P9.18",	/* spi0_d1 */
+		"P9.17",	/* spi0_cs0 */
+
+		/* CC1200 & XO */
+		"P8.7",		/* reset */
+		"P8.8",		/* gpio0 */
+		"P9.31",	/* spi1_sclk */
+		"P9.29",	/* spi1_d0 */
+		"P9.30",	/* spi1_d1 */
+		"P9.28",	/* spi1_cs0 */
+		"P9.42",	/* spi1_cs1 */
+		"P9.24",	/* pru0: pr1_pru0_pru_r31_16 */
+		
+		/* the hardware ip uses */
+		"spi0",
+		"spi1",
+		"pru0";
+
+	fragment@0 {
+		target = <&am33xx_pinmux>;
+		__overlay__ {
+			/* default state has all gpios released and mode set to uart1 */
+			dw_spi0_pins: pinmux_dw_spi0_pins {
+				pinctrl-single,pins = <
+					0x150 0x30	/* P9.22 sclk 		OUTPUT_PULLUP 	| MODE0 */
+					0x154 0x10	/* P9.21 d0 		INPUT_PULLUP 	| MODE0 */
+					0x158 0x30	/* P9.18 d1 		OUTPUT_PULLUP 	| MODE0 */
+					0x15c 0x10	/* P9.17 cs0 		OUTPUT_PULLUP 	| MODE0 */
+				>;
+			};
+			cc_spi1_pins: pinmux_cc_spi1_pins {
+				pinctrl-single,pins = <
+					0x090 0x17  /* P8.7  CC1200_RESET  		O_PULLUP | MODE7-GPIO2[2] */
+          			0x094 0x37  /* P8.8  CC1200_IRQ    		I_PULLUP | MODE7-GPIO2[3] */
+					0x190 0x33	/* mcasp0_aclkx.spi1_sclk, 	OUTPUT_PULLUP | MODE3 */
+					0x194 0x33	/* mcasp0_fsx.spi1_d0, 		INPUT_PULLUP  | MODE3 */
+					0x198 0x13	/* mcasp0_axr0.spi1_d1, 	OUTPUT_PULLUP | MODE3 */
+					0x19c 0x13	/* mcasp0_ahclkr.spi1_cs0, 	OUTPUT_PULLUP | MODE3 */
+					0x164 0x12  /* P9.42 gpio0_7.pr1_pru0_pru_r31_4, MODE2 | OUTPUT_PULLUP  | EN */
+					0x1a0 0x2f  /* P9.42 gpio3_18.gpio3_18, 		 MODE7 | INPUT  | DIS */
+				>;
+			};
+			rfs_gpio_pins: pinmux_rfs_gpio_pins {
+				pinctrl-single,pins = <
+					0x038 0x17  /* P8.16 RESET  	O_PULLUP | MODE7-GPIO1[14] */
+          			0x03c 0x37  /* P8.15 IRQ    	I_PULLUP | MODE7-GPIO1[15] */
+          			0x184 0x26	/* P9.24 uart1_txd.pr1_pru0_pru_r31_16, MODE6 | INPUT  | EN */
+				>;	
+			};
+		};
+	};
+ 
+	fragment@1 {
+		target = <&spi0>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			status = "okay";
+			pinctrl-names = "default";
+			pinctrl-0 = <&dw_spi0_pins>;
+			ti,pindir-d0-out-d1-in = <1>;
+			ti,pio-mode; /* disable dma when used as an overlay, dma gets stuck at 160 bits */
+			
+			channel@0 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				compatible = "spidev";
+
+				reg = <0>;
+				spi-max-frequency = <5000000>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&spi1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			status = "okay";
+			pinctrl-names = "default";
+			pinctrl-0 = <&cc_spi1_pins>;
+			ti,pio-mode; /* disable dma when used as an overlay, dma gets stuck at 160 bits */
+			
+			channel@0 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				compatible = "spidev";
+
+				reg = <0>;
+				spi-max-frequency = <7700000>;
+			};
+
+			channel@1 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				compatible = "spidev";
+
+				reg = <1>;
+				spi-max-frequency = <20000000>;
+			};
+		};
+	};
+
+	fragment@3 {         // Enable the PRUSS
+		target = <&pruss>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+   	fragment@4 {         // Enable the GPIOs
+      	target = <&ocp>;
+      	__overlay__ {
+         	gpio_helper {
+            	compatible = "gpio-of-helper";
+            	status = "okay";
+            	pinctrl-names = "default";
+            	pinctrl-0 = <&rfs_gpio_pins>;
+         	};
+      	};
+   	};
+};

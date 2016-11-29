@@ -16,6 +16,10 @@
  * Anh Luong <luong@eng.utah.edu>
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
 #include "deca_device_api.h"
 #include "deca_regs.h"
 #include "platform.h"
@@ -70,6 +74,8 @@ int main(void)
     /* Configure DW1000. */
     dwt_configure(&config);
 
+    printf("%s\n", APP_NAME);
+
     /* Loop forever receiving frames. */
     while (1)
     {
@@ -106,6 +112,8 @@ int main(void)
 
             /* Clear good RX frame event in the DW1000 status register. */
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
+
+            printf("MSG Received! DATA: %s\n", rx_buffer);
         }
         else
         {

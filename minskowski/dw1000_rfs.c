@@ -83,7 +83,7 @@ static uint8 ref_msg[] = {0x41, 0x8C, 0, 0x9A, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 'D'
 
 /* Buffer to store received frame. See NOTE 4 below. */
 #define FRAME_LEN_MAX 127
-static uint8 rx_sync_buffer[FRAME_LEN_MAX];
+//static uint8 rx_sync_buffer[FRAME_LEN_MAX];
 static uint8 rx_ref_buffer[FRAME_LEN_MAX];
 
 /* Hold copy of status register state here for reference so that it can be examined at a debug breakpoint. */
@@ -126,6 +126,8 @@ cc1200_msg_t cc1200_msg = {
 	0xBEEF
 };
 
+#define N_SAMPLES 2000
+
 //static uint8_t tx_msg[] = {0x18, 0, 0, 'T', 'I', 'C', 'C', '1', '2', '0', '0', 'A', 'L'};
 //static uint8_t rx_msg[ARRAY_SIZE(tx_msg)] = {0, };
 
@@ -139,24 +141,27 @@ uint64 get_rx_syscount_u64(void);
 uint64 compute_offset(uint64 t_rx2, uint64 t_tx1, uint64 d);
 uint64 compute_prop_delay(uint64 t_tx1, uint64 t_rx1, uint64 d);
 double dtu_2_s(uint64 d);
+double compare (const void * a, const void * b);
 
 /**
  * Application entry point.
  */
 int main(int argc, char* argv[])
 {
+	//double tof_array[N_SAMPLES] = {0};
+	//int tof_counter = 0;
 	uint8_t isREF = 0;
-	uint16_t ant_delay = 0;
+	uint16_t ant_delay = 16463;//0;
 	
-	if(argc != 3)
+	if(argc != 2)
 	{
 		printf("usage: %s REF/SYNC\n", argv[0]);
 		return 0;
 	}
-	else if(argc == 3)
+	else if(argc == 2)
 	{
 		isREF = atoi(argv[1]);
-		ant_delay = (uint16_t) atoi(argv[2]);
+		//ant_delay = (uint16_t) atoi(argv[2]);
 	}
 
     /* Start with board specific hardware init. */
@@ -191,6 +196,9 @@ int main(int argc, char* argv[])
 	uint8_t rxbytes;
 	uint8_t status;
 
+	/* Testing Purpose */
+	uint32_t samples = 0;
+
     // Run SYNC program
     if(!isREF)
     {
@@ -200,7 +208,9 @@ int main(int argc, char* argv[])
     	dwt_setrxtimeout(RX_RESP_TO_UUS);
 
 	    /* Loop forever sending and receiving frames periodically. */
-	    while (1)
+	    //while (1)
+	    /* Testing Purpose */
+	    while (samples < N_SAMPLES)
 	    {
 	    	// RX
 			cc1200_cmd_strobe(CC1200_SRX);
@@ -251,7 +261,7 @@ int main(int argc, char* argv[])
 	            /* Get the received timestamp and the system counter and print to console */
 	            t_rx1_ts = get_rx_timestamp_u64();
 	            t_rx1_stc = get_rx_syscount_u64();
-	            printf("%lld %lld %lld %lld\n", t_tx1_ts, t_tx1_stc, t_rx1_ts, t_rx1_stc);
+	            //printf("%lld %lld %lld %lld\n", t_tx1_ts, t_tx1_stc, t_rx1_ts, t_rx1_stc);
 
 	            /* Clear good RX frame event in the DW1000 status register. */
 	            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
@@ -263,7 +273,7 @@ int main(int argc, char* argv[])
 	        	//missed_msg_routine();
 
 	            /* Print a row of zeros */
-	            printf("0 0 0 0 RX ERROR\n");
+	            //printf("0 0 0 0 RX ERROR\n");
 
 	            /* Clear RX error/timeout events in the DW1000 status register. */
 	            dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
@@ -273,9 +283,10 @@ int main(int argc, char* argv[])
 	        }
 
 	        /* Poll for message from CC1200 that contains detla and rx timestamp */
-			uint8_t retry = 0;
+			uint16_t retry = 300;
+			uint8_t gotMsg = 0;
 			cc1200_msg_t rx_msg = {0, };
-			for(retry = 0; retry < 200; retry++)
+			for(retry = 300; retry > 0; retry--)
 			{				
 				cc1200_read_register(CC1200_MARC_STATUS1, &status);
 				if(status == CC1200_MARC_STATUS1_RX_SUCCEED)
@@ -293,9 +304,8 @@ int main(int argc, char* argv[])
 							int rx_fifo_bytes = rxbytes - 2;
 							cc1200_read_rxfifo((uint8_t *)&rx_msg, rx_fifo_bytes);
 
-							printf("retry=%d. MSG Received! DATA: ", retry);
-
-							printf("%02x %02x %lld %lld %lld %lld size: %d\n", rx_msg.phr, rx_msg.len, rx_msg.t_rx2_ts, rx_msg.t_rx2_stc, rx_msg.my_delta_ts, rx_msg.my_delta_stc, rxbytes);
+							//printf("MSG Received! DATA: %02x %02x %lld %lld %lld %lld rxbytes: %d ", rx_msg.phr, rx_msg.len, rx_msg.t_rx2_ts, rx_msg.t_rx2_stc, rx_msg.my_delta_ts, rx_msg.my_delta_stc, rxbytes);
+							//printf("retry = %d\n", (250-retry));
 
 							//int i;
 							//for (i = 0; i < rx_fifo_bytes; i++)
@@ -304,7 +314,8 @@ int main(int argc, char* argv[])
 
 							cc1200_cmd_strobe(CC1200_SFRX);
 
-							retry = 200;
+							gotMsg = 1;
+							break;
 						}
 					}
 
@@ -316,23 +327,57 @@ int main(int argc, char* argv[])
 				// }
 			}
 
-	        uint64 my_delta_ts = rx_msg.my_delta_ts; // this is delta in our diagram
-	        uint64 my_delta_stc = rx_msg.my_delta_stc; // this is delta in our diagram
-	        t_rx2_ts = rx_msg.t_rx2_ts; // T_rx2 in our diagram
-	        t_rx2_stc = rx_msg.t_rx2_stc; // T_rx2 in our diagram
+			if(gotMsg)
+			{
+		        uint64 my_delta_ts = rx_msg.my_delta_ts; // this is delta in our diagram
+		        uint64 my_delta_stc = rx_msg.my_delta_stc; // this is delta in our diagram
+		        t_rx2_ts = rx_msg.t_rx2_ts; // T_rx2 in our diagram
+		        t_rx2_stc = rx_msg.t_rx2_stc; // T_rx2 in our diagram
 
-	        /* Compute time-sync parameters delta and phi */
-	        uint64 Delta_ts = compute_prop_delay(t_tx1_ts,t_rx1_ts,my_delta_ts);
-	        uint64 Delta_stc = compute_prop_delay(t_tx1_stc,t_rx1_stc,my_delta_stc);
-	        uint64 phi_ts = compute_offset(t_rx2_ts,t_tx1_ts,my_delta_ts);
-	        uint64 phi_stc = compute_offset(t_rx2_stc,t_tx1_stc,my_delta_stc);
+		        /* Compute time-sync parameters delta and phi */
+		        uint64 Delta_ts = compute_prop_delay(t_tx1_ts,t_rx1_ts,my_delta_ts);
+		        uint64 Delta_stc = compute_prop_delay(t_tx1_stc,t_rx1_stc,my_delta_stc);
+		        //uint64 phi_ts = compute_offset(t_rx2_ts,t_tx1_ts,my_delta_ts);
+		        //uint64 phi_stc = compute_offset(t_rx2_stc,t_tx1_stc,my_delta_stc);
 
-	        double tof = dtu_2_s(Delta_ts);
+		        double tof = dtu_2_s(Delta_ts);
 
-	        printf("%lld %lld\n", Delta_ts, Delta_stc);
-	        printf("%3.9e sec\n", tof);
-	        printf("%4.3f m\n", tof*299792458.0*0.84);
+		        printf("delta_ts: %lld delta_stc: %lld ", Delta_ts, Delta_stc);
+		        printf("offset: %3.9e sec ", tof);
+		        printf("range: %4.3f m\n", tof*299792458.0*0.84);
 
+		        /*
+		        if(tof < 10e-9)
+		        {
+		        	tof_array[tof_counter] = tof;
+		        	tof_counter++;
+
+		        	if(tof_counter == N_SAMPLES)
+		        	{
+		        		qsort (tof_array, N_SAMPLES, sizeof(double), compare);
+
+		        		// tof_array[ELEMENTS/2]
+
+		        		// // perform average
+		        		// for(int iii = 0; iii < N_SAMPLES; iii++)
+		        		// {
+		        		// 	tof_avg += tof_array[iii];
+		        		// }
+		        		// tof_avg = tof_avg/(double) N_SAMPLES;
+		        		printf("\n\n\n\n%3.9e second median\n\n\n\n", tof_array[N_SAMPLES/2]);
+		        		return 0;
+
+		        		// reset for next round
+		        		tof_counter=0;
+		        	}
+		        }
+				*/
+
+		       	/* Testing purpose */
+	        	samples++;
+		    }
+
+	        fflush(stdout);
 
 	        // WRITE CODE HERE
 
@@ -488,7 +533,7 @@ int main(int argc, char* argv[])
 					usleep(1000);
 				};
 
-				printf("MSG SENT! retry=%d\n", retry);
+				printf("MSG SENT! retry = %d\n", retry);
 
 				cc1200_cmd_strobe(CC1200_SFTX);
 
@@ -644,6 +689,10 @@ double dtu_2_s(uint64 d)
 	return (double)d*(1.0/499.2e6/128.0);
 }
 
+double compare (const void * a, const void * b)
+{
+  return ( *(double*)a - *(double*)b );
+}
 /*****************************************************************************************************************************************************
  * NOTES:
  *

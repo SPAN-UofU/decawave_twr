@@ -113,7 +113,12 @@ int main(void)
             /* Clear good RX frame event in the DW1000 status register. */
             dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_RXFCG);
 
-            printf("MSG Received! DATA: %s\n", rx_buffer);
+            printf("MSG Received! DATA: ", rx_buffer);
+            int i;
+            for (i = 0; i < frame_len; i++)
+                printf("%02x ", rx_buffer[i]);
+            printf(" bytes: %d\n", frame_len);
+
         }
         else
         {

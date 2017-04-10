@@ -30,3 +30,4 @@ void cc1200_write_reg_settings(const registerSetting_t *reg_settings,
 int cc1200_read_register(uint16_t reg, uint8_t *data);
 int cc1200_write_txfifo(uint8_t *data, uint8_t len);
 int cc1200_read_rxfifo(uint8_t *data, uint8_t len);
+void cc1200_close();

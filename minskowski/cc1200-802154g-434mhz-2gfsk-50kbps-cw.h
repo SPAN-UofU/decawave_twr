@@ -155,7 +155,7 @@ static const registerSetting_t preferredSettings[]=
 // Symbol rate = 10 
 // Whitening = false 
 
-static const registerSetting_t preferredSettings[]= 
+static const registerSetting_t preferredSettings_cw[]= 
 {
   {CC1200_IOCFG3,            0x28}, //MAGN_VALID
   {CC1200_IOCFG0,            0x06}, //PKT_SYNC_RXTX
@@ -217,8 +217,8 @@ static const registerSetting_t preferredSettings[]=
 /*---------------------------------------------------------------------------*/
 /* Global linkage: symbol name must be different in each exported file! */
 const cc1200_rf_cfg_t cc1200_802154g_434mhz_2gfsk_50kbps_cw = {
-  .register_settings = preferredSettings,
-  .size_of_register_settings = sizeof(preferredSettings),
+  .register_settings = preferredSettings_cw,
+  .size_of_register_settings = sizeof(preferredSettings_cw),
   .chan_center_freq0 = RF_CFG_CHAN_CENTER_F0,
   .chan_spacing = RF_CFG_CHAN_SPACING,
   .min_channel = RF_CFG_MIN_CHANNEL,

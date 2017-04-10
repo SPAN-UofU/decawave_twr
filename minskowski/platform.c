@@ -232,6 +232,11 @@ int hardware_init (char * spi_path)
 	return 0;
 }
 
+void hardware_close()
+{
+	close(fd);
+}
+
 int reset_DW1000(void)
 {
 	char setValue[4], GPIOValue[64];

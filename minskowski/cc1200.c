@@ -274,3 +274,8 @@ int cc1200_init(char * spi_path)
 
 	return 0;
 }
+
+void cc1200_close()
+{
+	close(fd);
+}

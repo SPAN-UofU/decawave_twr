@@ -106,7 +106,7 @@ static int fd, xo_fd;
 
 static uint8_t buf[1024];
 
-static volatile int keepRunning = 75;
+static volatile int keepRunning = 150;//75;
 
 struct timespec diff(struct timespec start, struct timespec end)
 {
@@ -616,7 +616,7 @@ int main(int argc, char* argv[]){
 			if(continuous)
 			{
 				keepRunning--;
-				usleep(1200000000);
+				usleep(600000000);//1200000000);
 			}
 			else
 				keepRunning = 0;
